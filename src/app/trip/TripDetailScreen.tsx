@@ -167,14 +167,13 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
         </View>
       )}
 
-      {(trip.status === 'planning' || trip.status === 'active') && (
-        <View style={styles.weatherSection}>
-          <WeatherWidget
-            latitude={trip.location.latitude}
-            longitude={trip.location.longitude}
-          />
-        </View>
-      )}
+      <View style={styles.weatherSection}>
+        <WeatherWidget
+          latitude={trip.location.latitude}
+          longitude={trip.location.longitude}
+          tripDate={date}
+        />
+      </View>
 
       <View style={styles.actions}>
         <Button title="Chat" onPress={() => onChat(tripId)} />

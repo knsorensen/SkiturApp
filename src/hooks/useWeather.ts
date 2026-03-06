@@ -1,17 +1,10 @@
 import { useEffect, useState } from 'react';
-import { fetchWeather } from '../services/weather';
+import { fetchWeather, WeatherEntry } from '../services/weather';
 
-export interface WeatherForecast {
-  temperature: number;
-  windSpeed: number;
-  windDirection: number;
-  precipitation: number;
-  cloudCover: number;
-  symbol: string;
-}
+export type { WeatherEntry as WeatherForecast };
 
 export function useWeather(latitude: number, longitude: number) {
-  const [forecast, setForecast] = useState<WeatherForecast[]>([]);
+  const [forecast, setForecast] = useState<WeatherEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
