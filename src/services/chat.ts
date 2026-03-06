@@ -29,13 +29,15 @@ export async function sendMessage(
   tripId: string,
   userId: string,
   text: string,
-  imageURL: string | null = null
+  imageURL: string | null = null,
+  displayName: string = ''
 ) {
   const messagesRef = collection(db, 'trips', tripId, 'messages');
   await addDoc(messagesRef, {
     userId,
     text,
     imageURL,
+    displayName,
     createdAt: serverTimestamp(),
   });
 }

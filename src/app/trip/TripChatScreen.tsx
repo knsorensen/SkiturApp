@@ -16,6 +16,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { subscribeToMessages, sendMessage } from '../../services/chat';
+import { addParticipant } from '../../services/trips';
 import { Message } from '../../types';
 import { formatTime } from '../../utils/dateUtils';
 import { COLORS } from '../../constants';
@@ -39,7 +40,10 @@ export default function TripChatScreen({ tripId }: Props) {
     if (!user || !text.trim()) return;
     const msg = text.trim();
     setText('');
-    await sendMessage(tripId, user.uid, msg);
+    const displayName = user.displayName || user.email?.split('@')[0] || 'Ukjent';
+    await sendMessage(tripId, user.uid, msg, null, displayName);
+    // Auto-join as participant if not already
+    addParticipant(tripId, user.uid).catch(() => {});
   };
 
   const handleSendPhoto = useCallback(async () => {
@@ -65,7 +69,8 @@ export default function TripChatScreen({ tripId }: Props) {
       const storageRef = ref(storage, filename);
       await uploadBytes(storageRef, blob);
       const imageURL = await getDownloadURL(storageRef);
-      await sendMessage(tripId, user.uid, '', imageURL);
+      const displayName = user.displayName || user.email?.split('@')[0] || 'Ukjent';
+      await sendMessage(tripId, user.uid, '', imageURL, displayName);
     } catch (error: any) {
       Alert.alert('Feil', 'Kunne ikke sende bildet.');
     }
@@ -77,6 +82,9 @@ export default function TripChatScreen({ tripId }: Props) {
 
     return (
       <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
+        {!isMe && (item as any).displayName ? (
+          <Text style={styles.senderName}>{(item as any).displayName}</Text>
+        ) : null}
         {item.imageURL ? (
           <Image source={{ uri: item.imageURL }} style={styles.chatImage} />
         ) : null}
@@ -155,6 +163,12 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: COLORS.border,
+  },
+  senderName: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.primary,
+    marginBottom: 2,
   },
   messageText: {
     fontSize: 15,
