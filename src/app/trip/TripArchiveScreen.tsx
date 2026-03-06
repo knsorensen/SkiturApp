@@ -100,6 +100,7 @@ function TripArchiveContent({ trip }: { trip: Trip }) {
           startLocation={trip.location}
           endLocation={trip.endLocation}
           showsUserLocation={false}
+          showSkiTrails
         />
       </View>
 

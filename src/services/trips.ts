@@ -18,12 +18,11 @@ import { Trip } from '../types';
 const tripsRef = collection(db, 'trips');
 
 export function subscribeToTrips(
-  userId: string,
+  _userId: string,
   callback: (trips: Trip[]) => void
 ) {
   const q = query(
     tripsRef,
-    where('participants', 'array-contains', userId),
     orderBy('startDate', 'desc')
   );
   return onSnapshot(q, (snapshot) => {

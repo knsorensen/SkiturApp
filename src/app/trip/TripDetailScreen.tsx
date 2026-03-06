@@ -15,6 +15,7 @@ import { useAuthStore } from '../../stores/authStore';
 import { Trip } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
 import Button from '../../components/common/Button';
+import TripMap from '../../components/map/TripMap';
 import WeatherWidget from '../../components/weather/WeatherWidget';
 import { COLORS } from '../../constants';
 
@@ -146,6 +147,25 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
           value={`${trip.participants.length} person${trip.participants.length !== 1 ? 'er' : ''}`}
         />
       </View>
+
+      {trip.location.latitude !== 0 && (
+        <View style={styles.mapContainer}>
+          <TripMap
+            routePoints={[]}
+            participantPositions={new Map()}
+            startLocation={trip.location}
+            endLocation={trip.endLocation}
+            showsUserLocation={false}
+            showSkiTrails={trip.status === 'planning' || trip.status === 'active'}
+            initialRegion={{
+              latitude: trip.location.latitude,
+              longitude: trip.location.longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            }}
+          />
+        </View>
+      )}
 
       {(trip.status === 'planning' || trip.status === 'active') && (
         <View style={styles.weatherSection}>
@@ -291,6 +311,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '500',
     color: COLORS.text,
+  },
+  mapContainer: {
+    height: 250,
+    borderRadius: 12,
+    overflow: 'hidden',
+    marginBottom: 20,
   },
   weatherSection: {
     marginBottom: 20,

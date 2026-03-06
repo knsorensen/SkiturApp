@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { RoutePoint, Photo } from '../../types';
+import { fetchSkiTrails, SkiTrail } from '../../services/skiTrails';
 import { COLORS } from '../../constants';
 
 interface Props {
@@ -18,6 +19,7 @@ interface Props {
   startLocation?: { latitude: number; longitude: number; name?: string };
   endLocation?: { latitude: number; longitude: number; name?: string };
   showsUserLocation?: boolean;
+  showSkiTrails?: boolean;
 }
 
 const PARTICIPANT_COLORS = ['#E63946', '#457B9D', '#2A9D8F', '#E9C46A', '#F4A261'];
@@ -31,7 +33,17 @@ export default function TripMap({
   startLocation,
   endLocation,
   showsUserLocation = true,
+  showSkiTrails = false,
 }: Props) {
+  const [skiTrails, setSkiTrails] = useState<SkiTrail[]>([]);
+
+  useEffect(() => {
+    if (!showSkiTrails || !startLocation) return;
+    fetchSkiTrails(startLocation.latitude, startLocation.longitude, 15)
+      .then(setSkiTrails)
+      .catch(() => setSkiTrails([]));
+  }, [showSkiTrails, startLocation?.latitude, startLocation?.longitude]);
+
   const routeCoords = routePoints.map((p) => ({
     latitude: p.latitude,
     longitude: p.longitude,
@@ -44,7 +56,6 @@ export default function TripMap({
     longitudeDelta: 5,
   };
 
-  // Collect all points for fitting the map view
   const allPoints = [...routeCoords];
   if (startLocation) allPoints.push({ latitude: startLocation.latitude, longitude: startLocation.longitude });
   if (endLocation) allPoints.push({ latitude: endLocation.latitude, longitude: endLocation.longitude });
@@ -62,6 +73,20 @@ export default function TripMap({
       showsMyLocationButton
       mapType="terrain"
     >
+      {/* Ski trails from Sporet.no */}
+      {skiTrails.map((trail) => (
+        <Polyline
+          key={`trail-${trail.id}`}
+          coordinates={trail.coordinates.map(([lng, lat]) => ({
+            latitude: lat,
+            longitude: lng,
+          }))}
+          strokeWidth={2}
+          strokeColor={trail.hasClassic ? '#FF6B35' : '#9B59B6'}
+        />
+      ))}
+
+      {/* GPS tracked route */}
       {routeCoords.length > 1 && (
         <Polyline
           coordinates={routeCoords}
