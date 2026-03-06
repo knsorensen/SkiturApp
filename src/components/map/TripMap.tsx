@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { RoutePoint, Photo } from '../../types';
-import { fetchSkiTrails, SkiTrail } from '../../services/skiTrails';
+import { fetchSkiTrailsBetween, SkiTrail } from '../../services/skiTrails';
 import { COLORS } from '../../constants';
 
 interface Props {
@@ -38,11 +38,20 @@ export default function TripMap({
   const [skiTrails, setSkiTrails] = useState<SkiTrail[]>([]);
 
   useEffect(() => {
-    if (!showSkiTrails || !startLocation) return;
-    fetchSkiTrails(startLocation.latitude, startLocation.longitude, 15)
+    if (!showSkiTrails || !startLocation || !endLocation) {
+      setSkiTrails([]);
+      return;
+    }
+    fetchSkiTrailsBetween(startLocation, endLocation)
       .then(setSkiTrails)
       .catch(() => setSkiTrails([]));
-  }, [showSkiTrails, startLocation?.latitude, startLocation?.longitude]);
+  }, [
+    showSkiTrails,
+    startLocation?.latitude,
+    startLocation?.longitude,
+    endLocation?.latitude,
+    endLocation?.longitude,
+  ]);
 
   const routeCoords = routePoints.map((p) => ({
     latitude: p.latitude,
@@ -81,8 +90,8 @@ export default function TripMap({
             latitude: lat,
             longitude: lng,
           }))}
-          strokeWidth={2}
-          strokeColor={trail.hasClassic ? '#FF6B35' : '#9B59B6'}
+          strokeWidth={3}
+          strokeColor={getTrailColor(trail)}
         />
       ))}
 
@@ -111,7 +120,7 @@ export default function TripMap({
         />
       )}
 
-      {startLocation && endLocation && routeCoords.length <= 1 && (
+      {startLocation && endLocation && routeCoords.length <= 1 && skiTrails.length === 0 && (
         <Polyline
           coordinates={[
             { latitude: startLocation.latitude, longitude: startLocation.longitude },
@@ -145,6 +154,15 @@ export default function TripMap({
       ))}
     </MapView>
   );
+}
+
+function getTrailColor(trail: SkiTrail): string {
+  if (trail.hasClassic && trail.hasSkating) return '#2196F3'; // blue: both
+  if (trail.hasClassic) return '#FF6B35'; // orange: classic
+  if (trail.hasSkating) return '#9B59B6'; // purple: skating
+  if (trail.hasFloodlight) return '#FFD700'; // gold: floodlit
+  if (trail.isScooterTrail) return '#78909C'; // grey: scooter
+  return '#4CAF50'; // green: other
 }
 
 function getRegionForCoordinates(
