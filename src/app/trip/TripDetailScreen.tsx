@@ -118,7 +118,10 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
       ) : null}
 
       <View style={styles.infoSection}>
-        <InfoRow label="Sted" value={trip.location.name} />
+        <InfoRow label="Startsted" value={trip.location.name} />
+        {trip.endLocation?.name ? (
+          <InfoRow label="Sluttpunkt" value={trip.endLocation.name} />
+        ) : null}
         <InfoRow label="Dato" value={formatDate(date)} />
         <InfoRow
           label="Deltakere"

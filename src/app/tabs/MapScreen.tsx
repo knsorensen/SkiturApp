@@ -71,6 +71,8 @@ export default function MapScreen() {
         routePoints={routePoints}
         participantPositions={participantPositions}
         initialRegion={initialRegion}
+        startLocation={activeTrip.location}
+        endLocation={activeTrip.endLocation}
       />
       <View style={styles.tripBanner}>
         <Text style={styles.tripName}>{activeTrip.title}</Text>

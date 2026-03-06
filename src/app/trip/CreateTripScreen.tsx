@@ -28,7 +28,12 @@ export default function CreateTripScreen({ onCreated, onCancel }: Props) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [locationName, setLocationName] = useState('');
-  const [locationCoords, setLocationCoords] = useState<{
+  const [endLocationName, setEndLocationName] = useState('');
+  const [startCoords, setStartCoords] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [endCoords, setEndCoords] = useState<{
     latitude: number;
     longitude: number;
   } | null>(null);
@@ -39,14 +44,18 @@ export default function CreateTripScreen({ onCreated, onCancel }: Props) {
   const handleCreate = async () => {
     if (!user) return;
     if (!title.trim() || !locationName.trim()) {
-      Alert.alert('Feil', 'Tittel og sted er påkrevd');
+      if (Platform.OS === 'web') {
+        window.alert('Tittel og startsted er påkrevd');
+      } else {
+        Alert.alert('Feil', 'Tittel og startsted er påkrevd');
+      }
       return;
     }
 
     setLoading(true);
     try {
       const parsedDate = date ? new Date(date) : new Date();
-      const tripId = await createTrip({
+      const tripData: any = {
         title: title.trim(),
         description: description.trim(),
         createdBy: user.uid,
@@ -54,16 +63,30 @@ export default function CreateTripScreen({ onCreated, onCancel }: Props) {
         startDate: Timestamp.fromDate(parsedDate),
         endDate: null,
         location: {
-          latitude: locationCoords?.latitude ?? 0,
-          longitude: locationCoords?.longitude ?? 0,
+          latitude: startCoords?.latitude ?? 0,
+          longitude: startCoords?.longitude ?? 0,
           name: locationName.trim(),
         },
         participants: [user.uid],
         invitedEmails: [],
-      });
+      };
+
+      if (endCoords) {
+        tripData.endLocation = {
+          latitude: endCoords.latitude,
+          longitude: endCoords.longitude,
+          name: endLocationName.trim() || 'Sluttpunkt',
+        };
+      }
+
+      const tripId = await createTrip(tripData);
       onCreated(tripId);
     } catch (error: any) {
-      Alert.alert('Feil', error.message);
+      if (Platform.OS === 'web') {
+        window.alert(error.message);
+      } else {
+        Alert.alert('Feil', error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -92,10 +115,16 @@ export default function CreateTripScreen({ onCreated, onCancel }: Props) {
           numberOfLines={3}
         />
         <Input
-          label="Sted"
-          placeholder="F.eks. Besseggen"
+          label="Startsted"
+          placeholder="F.eks. Besseggen parkering"
           value={locationName}
           onChangeText={setLocationName}
+        />
+        <Input
+          label="Sluttpunkt (valgfritt)"
+          placeholder="F.eks. Memurubu"
+          value={endLocationName}
+          onChangeText={setEndLocationName}
         />
 
         <TouchableOpacity
@@ -103,9 +132,11 @@ export default function CreateTripScreen({ onCreated, onCancel }: Props) {
           onPress={() => setShowLocationPicker(true)}
         >
           <Text style={styles.locationPickerText}>
-            {locationCoords
-              ? `Posisjon valgt (${locationCoords.latitude.toFixed(4)}, ${locationCoords.longitude.toFixed(4)})`
-              : 'Velg posisjon på kart'}
+            {startCoords
+              ? endCoords
+                ? `Start: ${startCoords.latitude.toFixed(4)}, ${startCoords.longitude.toFixed(4)} → Slutt: ${endCoords.latitude.toFixed(4)}, ${endCoords.longitude.toFixed(4)}`
+                : `Startpunkt valgt (${startCoords.latitude.toFixed(4)}, ${startCoords.longitude.toFixed(4)}) — trykk for å legge til sluttpunkt`
+              : 'Velg start- og sluttpunkt på kart'}
           </Text>
         </TouchableOpacity>
 
@@ -125,9 +156,12 @@ export default function CreateTripScreen({ onCreated, onCancel }: Props) {
 
       <Modal visible={showLocationPicker} animationType="slide">
         <LocationPicker
-          initialLocation={locationCoords ?? undefined}
-          onLocationSelected={(loc) => {
-            setLocationCoords(loc);
+          initialLocation={startCoords ?? undefined}
+          initialEndLocation={endCoords ?? undefined}
+          mode="startend"
+          onLocationSelected={(start, end) => {
+            setStartCoords(start);
+            setEndCoords(end ?? null);
             setShowLocationPicker(false);
           }}
           onCancel={() => setShowLocationPicker(false)}

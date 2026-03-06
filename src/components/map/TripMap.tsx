@@ -15,6 +15,8 @@ interface Props {
     latitudeDelta: number;
     longitudeDelta: number;
   };
+  startLocation?: { latitude: number; longitude: number; name?: string };
+  endLocation?: { latitude: number; longitude: number; name?: string };
   showsUserLocation?: boolean;
 }
 
@@ -26,6 +28,8 @@ export default function TripMap({
   photos = [],
   onPhotoPress,
   initialRegion,
+  startLocation,
+  endLocation,
   showsUserLocation = true,
 }: Props) {
   const routeCoords = routePoints.map((p) => ({
@@ -40,10 +44,14 @@ export default function TripMap({
     longitudeDelta: 5,
   };
 
-  // Fit to route if we have points
+  // Collect all points for fitting the map view
+  const allPoints = [...routeCoords];
+  if (startLocation) allPoints.push({ latitude: startLocation.latitude, longitude: startLocation.longitude });
+  if (endLocation) allPoints.push({ latitude: endLocation.latitude, longitude: endLocation.longitude });
+
   const region =
-    routeCoords.length > 0
-      ? getRegionForCoordinates(routeCoords)
+    allPoints.length > 0
+      ? getRegionForCoordinates(allPoints)
       : defaultRegion;
 
   return (
@@ -58,6 +66,33 @@ export default function TripMap({
         <Polyline
           coordinates={routeCoords}
           strokeWidth={3}
+          strokeColor={COLORS.primary}
+        />
+      )}
+
+      {startLocation && (
+        <Marker
+          coordinate={{ latitude: startLocation.latitude, longitude: startLocation.longitude }}
+          pinColor="#2A9D8F"
+          title={startLocation.name || 'Startpunkt'}
+        />
+      )}
+
+      {endLocation && (
+        <Marker
+          coordinate={{ latitude: endLocation.latitude, longitude: endLocation.longitude }}
+          pinColor="#E63946"
+          title={endLocation.name || 'Sluttpunkt'}
+        />
+      )}
+
+      {startLocation && endLocation && routeCoords.length <= 1 && (
+        <Polyline
+          coordinates={[
+            { latitude: startLocation.latitude, longitude: startLocation.longitude },
+            { latitude: endLocation.latitude, longitude: endLocation.longitude },
+          ]}
+          strokeWidth={2}
           strokeColor={COLORS.primary}
         />
       )}

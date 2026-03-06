@@ -97,6 +97,8 @@ function TripArchiveContent({ trip }: { trip: Trip }) {
           photos={photos}
           onPhotoPress={setSelectedPhoto}
           initialRegion={initialRegion}
+          startLocation={trip.location}
+          endLocation={trip.endLocation}
           showsUserLocation={false}
         />
       </View>

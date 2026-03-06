@@ -22,6 +22,11 @@ export interface Trip {
     longitude: number;
     name: string;
   };
+  endLocation?: {
+    latitude: number;
+    longitude: number;
+    name: string;
+  };
   participants: string[];
   invitedEmails: string[];
   createdAt: Timestamp;
