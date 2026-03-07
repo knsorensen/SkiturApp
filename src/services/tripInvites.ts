@@ -3,6 +3,7 @@ import {
   doc,
   setDoc,
   updateDoc,
+  getDocs,
   onSnapshot,
   query,
   orderBy,
@@ -68,4 +69,22 @@ export async function respondToInvite(
   status: 'accepted' | 'declined'
 ) {
   await updateDoc(doc(invitesCollection(tripId), inviteId), { status });
+}
+
+export async function reinviteAll(tripId: string, invitedBy: string) {
+  const q = query(invitesCollection(tripId), orderBy('createdAt', 'asc'));
+  const snapshot = await getDocs(q);
+  let count = 0;
+  for (const d of snapshot.docs) {
+    const data = d.data();
+    if (data.status !== 'pending') {
+      await updateDoc(doc(invitesCollection(tripId), d.id), {
+        status: 'pending',
+        invitedBy,
+        createdAt: serverTimestamp(),
+      });
+      count++;
+    }
+  }
+  return count;
 }

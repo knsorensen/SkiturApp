@@ -98,5 +98,22 @@ export async function cloneTrip(sourceTripId: string, trip: Trip, userId: string
     });
   }
 
+  // Clone invite list (reset status to pending)
+  const invitesRef = collection(db, 'trips', sourceTripId, 'tripInvites');
+  const invitesSnap = await getDocs(invitesRef);
+  const newInvitesRef = collection(db, 'trips', newTripId, 'tripInvites');
+  for (const inv of invitesSnap.docs) {
+    const data = inv.data();
+    await addDoc(newInvitesRef, {
+      uid: data.uid,
+      displayName: data.displayName,
+      email: data.email,
+      phone: data.phone ?? '',
+      invitedBy: userId,
+      status: 'pending',
+      createdAt: serverTimestamp(),
+    });
+  }
+
   return newTripId;
 }

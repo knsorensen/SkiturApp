@@ -14,7 +14,7 @@ import {
 import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { updateTrip, deleteTrip, addParticipant, removeParticipant } from '../../services/trips';
-import { subscribeToTripInvites, respondToInvite } from '../../services/tripInvites';
+import { subscribeToTripInvites, respondToInvite, reinviteAll } from '../../services/tripInvites';
 import { useAuthStore } from '../../stores/authStore';
 import { Trip, TripInvite } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
@@ -42,6 +42,7 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
   const [invitePhone, setInvitePhone] = useState('');
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteSending, setInviteSending] = useState(false);
+  const [reinviting, setReinviting] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'trips', tripId), (snapshot) => {
@@ -117,6 +118,48 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
         { text: 'Avbryt', style: 'cancel' },
         { text: 'Slett', style: 'destructive', onPress: doDelete },
       ]);
+    }
+  };
+
+  const handleReinviteAll = async () => {
+    if (!user?.uid) return;
+    const doReinvite = async () => {
+      setReinviting(true);
+      try {
+        const count = await reinviteAll(tripId, user.uid);
+        const msg = count > 0
+          ? `${count} invitasjon${count !== 1 ? 'er' : ''} sendt pa nytt.`
+          : 'Alle invitasjoner er allerede aktive.';
+        if (Platform.OS === 'web') {
+          window.alert(msg);
+        } else {
+          Alert.alert('Invitasjoner', msg);
+        }
+      } catch {
+        const msg = 'Kunne ikke sende invitasjoner. Prov igjen.';
+        if (Platform.OS === 'web') {
+          window.alert(msg);
+        } else {
+          Alert.alert('Feil', msg);
+        }
+      } finally {
+        setReinviting(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('Vil du sende ny invitasjon til alle tidligere inviterte?')) {
+        await doReinvite();
+      }
+    } else {
+      Alert.alert(
+        'Inviter alle igjen',
+        'Vil du sende ny invitasjon til alle tidligere inviterte?',
+        [
+          { text: 'Avbryt', style: 'cancel' },
+          { text: 'Send', onPress: doReinvite },
+        ]
+      );
     }
   };
 
@@ -202,7 +245,20 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
       {/* Invite list */}
       {invites.length > 0 && (
         <View style={styles.inviteSection}>
-          <Text style={styles.inviteSectionTitle}>Inviterte deltakere</Text>
+          <View style={styles.inviteSectionHeader}>
+            <Text style={styles.inviteSectionTitle}>Inviterte deltakere</Text>
+            {isCreator && invites.some((inv) => inv.status !== 'pending') && (
+              <TouchableOpacity
+                style={styles.reinviteBtn}
+                onPress={handleReinviteAll}
+                disabled={reinviting}
+              >
+                <Text style={styles.reinviteBtnText}>
+                  {reinviting ? 'Sender...' : 'Inviter alle igjen'}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
           {invites.map((inv) => {
             const isMe = user?.uid === inv.uid;
             const canRespond = isMe && inv.status === 'pending';
@@ -525,12 +581,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: COLORS.border,
   },
+  inviteSectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 10,
+  },
   inviteSectionTitle: {
     fontSize: 14,
     fontWeight: '700',
     color: COLORS.textSecondary,
-    marginBottom: 10,
     letterSpacing: 0.3,
+  },
+  reinviteBtn: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  reinviteBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
   inviteRow: {
     flexDirection: 'row',
