@@ -5,8 +5,12 @@ import {
   FlatList,
   StyleSheet,
   TouchableOpacity,
+  Alert,
+  Platform,
 } from 'react-native';
 import { useTrips } from '../../hooks/useTrips';
+import { useAuthStore } from '../../stores/authStore';
+import { cloneTrip } from '../../services/trips';
 import TripCard from '../../components/trip/TripCard';
 import { COLORS } from '../../constants';
 import { Trip } from '../../types';
@@ -18,6 +22,35 @@ interface Props {
 
 export default function TripsScreen({ onCreateTrip, onSelectTrip }: Props) {
   const { active, planning, completed } = useTrips();
+  const user = useAuthStore((s) => s.user);
+
+  const handleClone = async (trip: Trip) => {
+    if (!user?.uid) return;
+    const doClone = async () => {
+      try {
+        const newTripId = await cloneTrip(trip.id, trip, user.uid);
+        onSelectTrip(newTripId);
+      } catch {
+        const msg = 'Kunne ikke kopiere turen. Prov igjen.';
+        if (Platform.OS === 'web') {
+          window.alert(msg);
+        } else {
+          Alert.alert('Feil', msg);
+        }
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`Vil du opprette en ny tur basert pa "${trip.title}"?`)) {
+        await doClone();
+      }
+    } else {
+      Alert.alert('Gjenta tur', `Vil du opprette en ny tur basert pa "${trip.title}"?`, [
+        { text: 'Avbryt', style: 'cancel' },
+        { text: 'Gjenta', onPress: doClone },
+      ]);
+    }
+  };
 
   const sections: Array<{ title: string; data: Trip[] }> = [];
   if (active.length > 0) sections.push({ title: 'Aktive turer', data: active });
@@ -43,13 +76,14 @@ export default function TripsScreen({ onCreateTrip, onSelectTrip }: Props) {
             <TripCard
               trip={item.trip}
               onPress={() => onSelectTrip(item.trip.id)}
+              onClone={item.trip.status === 'completed' ? () => handleClone(item.trip) : undefined}
             />
           );
         }}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>Ingen turer ennå</Text>
-            <Text style={styles.emptySubtext}>Opprett din første tur!</Text>
+            <Text style={styles.emptyText}>Ingen turer enna</Text>
+            <Text style={styles.emptySubtext}>Opprett din forste tur!</Text>
           </View>
         }
       />

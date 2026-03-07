@@ -4,11 +4,13 @@ import {
   addDoc,
   updateDoc,
   deleteDoc,
+  getDocs,
   query,
   where,
   orderBy,
   onSnapshot,
   serverTimestamp,
+  Timestamp,
   arrayUnion,
   arrayRemove,
 } from 'firebase/firestore';
@@ -66,4 +68,35 @@ export async function removeParticipant(tripId: string, userId: string) {
     participants: arrayRemove(userId),
     updatedAt: serverTimestamp(),
   });
+}
+
+export async function cloneTrip(sourceTripId: string, trip: Trip, userId: string): Promise<string> {
+  const newTripId = await createTrip({
+    title: trip.title,
+    description: trip.description,
+    createdBy: userId,
+    status: 'planning',
+    startDate: Timestamp.fromDate(new Date()),
+    endDate: null,
+    location: trip.location,
+    endLocation: trip.endLocation,
+    participants: [userId],
+    invitedEmails: [],
+  });
+
+  // Clone shopping list items (unchecked)
+  const shoppingRef = collection(db, 'trips', sourceTripId, 'shoppingList');
+  const shoppingSnap = await getDocs(shoppingRef);
+  const newShoppingRef = collection(db, 'trips', newTripId, 'shoppingList');
+  for (const item of shoppingSnap.docs) {
+    const data = item.data();
+    await addDoc(newShoppingRef, {
+      text: data.text,
+      checked: false,
+      addedBy: userId,
+      createdAt: serverTimestamp(),
+    });
+  }
+
+  return newTripId;
 }

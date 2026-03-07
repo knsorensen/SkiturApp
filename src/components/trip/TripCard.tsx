@@ -7,12 +7,13 @@ import { COLORS } from '../../constants';
 interface Props {
   trip: Trip;
   onPress: () => void;
+  onClone?: () => void;
 }
 
 const STATUS_LABELS: Record<Trip['status'], string> = {
   planning: 'Planlegges',
   active: 'Aktiv',
-  completed: 'Fullført',
+  completed: 'Fullfort',
 };
 
 const STATUS_COLORS: Record<Trip['status'], string> = {
@@ -21,7 +22,7 @@ const STATUS_COLORS: Record<Trip['status'], string> = {
   completed: COLORS.textSecondary,
 };
 
-export default function TripCard({ trip, onPress }: Props) {
+export default function TripCard({ trip, onPress, onClone }: Props) {
   const date = trip.startDate?.toDate?.() ?? new Date();
 
   return (
@@ -39,9 +40,23 @@ export default function TripCard({ trip, onPress }: Props) {
       </Text>
       <View style={styles.footer}>
         <Text style={styles.date}>{formatDate(date)}</Text>
-        <Text style={styles.participants}>
-          {trip.participants.length} deltaker{trip.participants.length !== 1 ? 'e' : ''}
-        </Text>
+        <View style={styles.footerRight}>
+          <Text style={styles.participants}>
+            {trip.participants.length} deltaker{trip.participants.length !== 1 ? 'e' : ''}
+          </Text>
+          {onClone && (
+            <TouchableOpacity
+              style={styles.cloneBtn}
+              onPress={(e) => {
+                e.stopPropagation();
+                onClone();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.cloneBtnText}>Gjenta tur</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -87,6 +102,12 @@ const styles = StyleSheet.create({
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  footerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
   },
   date: {
     fontSize: 13,
@@ -95,5 +116,16 @@ const styles = StyleSheet.create({
   participants: {
     fontSize: 13,
     color: COLORS.textSecondary,
+  },
+  cloneBtn: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  cloneBtnText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
