@@ -41,6 +41,7 @@ service cloud.firestore {
         allow read: if request.auth != null;
         allow create: if request.auth != null;
         allow update: if request.auth != null;
+        allow delete: if request.auth.uid in get(/databases/$(database)/documents/trips/$(tripId)).data.participants;
       }
     }
 
