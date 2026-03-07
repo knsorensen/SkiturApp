@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
+import Constants from 'expo-constants';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../../stores/authStore';
 import { useTrips } from '../../hooks/useTrips';
@@ -15,8 +16,11 @@ export default function HomeScreen() {
 
   const upcoming = [...active, ...planning].slice(0, 5);
 
+  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+
   return (
     <View style={styles.container}>
+      <Text style={styles.versionTicker}>SkiturApp v{appVersion}</Text>
       <FlatList
         data={upcoming}
         keyExtractor={(item) => item.id}
@@ -79,6 +83,15 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.background,
+  },
+  versionTicker: {
+    textAlign: 'center',
+    fontSize: 11,
+    color: COLORS.textSecondary,
+    paddingVertical: 4,
+    backgroundColor: COLORS.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   list: {
     padding: 16,
