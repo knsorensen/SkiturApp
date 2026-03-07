@@ -15,7 +15,7 @@ import { Timestamp, doc, onSnapshot } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { updateTrip } from '../../services/trips';
-import { inviteUserToTrip, inviteNewUserToTrip, subscribeToTripInvites } from '../../services/tripInvites';
+import { inviteUserToTrip, inviteNewUserToTrip, subscribeToTripInvites, deleteInvite } from '../../services/tripInvites';
 import Input from '../../components/common/Input';
 import Button from '../../components/common/Button';
 import LocationPicker from '../../components/map/LocationPicker';
@@ -132,6 +132,15 @@ export default function EditTripScreen({ tripId, onSaved, onCancel }: Props) {
       }
 
       await updateTrip(tripId, data);
+
+      // Delete removed invites
+      const selectedKeys = new Set(invitedUsers.map((s) => s.uid || s.email || s.phone));
+      for (const existing of existingInvites) {
+        const existingKey = existing.uid || existing.email || existing.phone;
+        if (!selectedKeys.has(existingKey)) {
+          await deleteInvite(tripId, existing.id);
+        }
+      }
 
       // Send new invites (skip already invited)
       const existingIds = new Set(existingInvites.map((i) => i.uid || i.email));

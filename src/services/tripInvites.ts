@@ -63,6 +63,11 @@ export async function inviteNewUserToTrip(
   });
 }
 
+export async function deleteInvite(tripId: string, inviteId: string) {
+  const { deleteDoc } = await import('firebase/firestore');
+  await deleteDoc(doc(invitesCollection(tripId), inviteId));
+}
+
 export async function respondToInvite(
   tripId: string,
   inviteId: string,
