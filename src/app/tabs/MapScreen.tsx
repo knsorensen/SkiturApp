@@ -23,10 +23,14 @@ export default function MapScreen() {
   const participantPositions = useParticipantPositions(tripId);
   const participantNames = useParticipantNames(activeTrip?.participants ?? []);
 
-  // Redirect to Home if no active trip (handles direct URL access)
+  // Redirect to Home if no active trip (handles direct URL access on web)
   useEffect(() => {
     if (!activeTrip) {
-      navigation.navigate('Home');
+      if (Platform.OS === 'web') {
+        window.location.replace('/');
+      } else {
+        navigation.navigate('Home');
+      }
     }
   }, [activeTrip, navigation]);
 
