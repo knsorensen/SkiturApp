@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Platform, Alert } from 'react-native';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { db } from '../../services/firebase';
+import { updateProfile } from 'firebase/auth';
+import { db, auth } from '../../services/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { signOut } from '../../services/auth';
 import { useTheme } from '../../hooks/useTheme';
@@ -22,71 +23,154 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
+
+  const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
-  const [phoneSaved, setPhoneSaved] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) return;
+    setDisplayName(user.displayName || '');
     getDoc(doc(db, 'users', user.uid)).then((snap) => {
       if (snap.exists()) {
-        setPhone(snap.data().phone ?? '');
+        const data = snap.data();
+        setPhone(data.phone ?? '');
+        if (data.displayName) setDisplayName(data.displayName);
       }
     });
   }, [user?.uid]);
 
-  const savePhone = async () => {
+  const handleSave = async () => {
     if (!user?.uid) return;
-    await updateDoc(doc(db, 'users', user.uid), { phone: phone.trim() });
-    setPhoneSaved(true);
-    setTimeout(() => setPhoneSaved(false), 2000);
+    const name = displayName.trim();
+    if (!name) {
+      const msg = 'Navn kan ikke vare tomt.';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Mangler navn', msg);
+      }
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        displayName: name,
+        phone: phone.trim(),
+      });
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: name });
+      }
+      setEditing(false);
+    } catch {
+      const msg = 'Kunne ikke lagre endringene. Prov igjen.';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Feil', msg);
+      }
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.content}
+    >
       <Text style={[styles.title, { color: colors.text }]}>{t('profile.profile')}</Text>
-      <Text style={[styles.email, { color: colors.textSecondary }]}>
-        {user?.displayName || user?.email}
-      </Text>
-      <Text style={[styles.emailSub, { color: colors.textSecondary }]}>
-        {user?.email}
-      </Text>
 
-      <View style={[styles.phoneSection, { borderColor: colors.border }]}>
-        <Text style={[styles.phoneLabel, { color: colors.text }]}>Mobilnummer</Text>
-        <View style={styles.phoneRow}>
+      {/* Profile info section */}
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Personlig informasjon</Text>
+
+        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Navn</Text>
+        {editing ? (
           <TextInput
-            style={[styles.phoneInput, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.text }]}
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+            value={displayName}
+            onChangeText={setDisplayName}
+            placeholder="Ditt navn"
+            placeholderTextColor={colors.textSecondary}
+            autoCapitalize="words"
+          />
+        ) : (
+          <Text style={[styles.fieldValue, { color: colors.text }]}>
+            {displayName || '-'}
+          </Text>
+        )}
+
+        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>E-post</Text>
+        <Text style={[styles.fieldValue, { color: colors.text }]}>
+          {user?.email || '-'}
+        </Text>
+
+        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Mobilnummer</Text>
+        {editing ? (
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
             value={phone}
             onChangeText={setPhone}
             placeholder="Ditt mobilnummer"
-            keyboardType="phone-pad"
             placeholderTextColor={colors.textSecondary}
+            keyboardType="phone-pad"
           />
+        ) : (
+          <Text style={[styles.fieldValue, { color: colors.text }]}>
+            {phone || '-'}
+          </Text>
+        )}
+
+        {editing ? (
+          <View style={styles.editButtons}>
+            <TouchableOpacity
+              style={[styles.saveBtn, { backgroundColor: colors.primary }]}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              <Text style={styles.saveBtnText}>{saving ? 'Lagrer...' : 'Lagre'}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.cancelBtn, { borderColor: colors.border }]}
+              onPress={() => {
+                setEditing(false);
+                setDisplayName(user?.displayName || '');
+                getDoc(doc(db, 'users', user!.uid)).then((snap) => {
+                  if (snap.exists()) setPhone(snap.data().phone ?? '');
+                });
+              }}
+            >
+              <Text style={[styles.cancelBtnText, { color: colors.text }]}>Avbryt</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
           <TouchableOpacity
-            style={[styles.phoneSaveBtn, { backgroundColor: colors.primary }]}
-            onPress={savePhone}
+            style={[styles.editBtn, { backgroundColor: colors.primary }]}
+            onPress={() => setEditing(true)}
           >
-            <Text style={styles.phoneSaveText}>{phoneSaved ? 'Lagret!' : 'Lagre'}</Text>
+            <Text style={styles.editBtnText}>Rediger profil</Text>
           </TouchableOpacity>
-        </View>
+        )}
       </View>
 
-      <View style={[styles.themeSection, { borderColor: colors.border }]}>
-        <Text style={[styles.themeLabel, { color: colors.text }]}>
+      {/* Theme section */}
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
           {locale === 'nb' ? 'Tema' : 'Theme'}
         </Text>
-        <View style={styles.themeOptions}>
+        <View style={styles.optionRow}>
           {THEME_OPTIONS.map((option) => {
             const isActive = preference === option.value;
             return (
               <TouchableOpacity
                 key={option.value}
                 style={[
-                  styles.themeOption,
+                  styles.optionBtn,
                   {
-                    backgroundColor: isActive
-                      ? colors.primary
-                      : colors.surface,
+                    backgroundColor: isActive ? colors.primary : colors.background,
                     borderColor: colors.border,
                   },
                 ]}
@@ -94,7 +178,7 @@ export default function ProfileScreen() {
               >
                 <Text
                   style={[
-                    styles.themeOptionText,
+                    styles.optionText,
                     { color: isActive ? '#FFFFFF' : colors.text },
                   ]}
                 >
@@ -106,16 +190,17 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <View style={[styles.languageSection, { borderColor: colors.border }]}>
-        <Text style={[styles.languageLabel, { color: colors.text }]}>
+      {/* Language section */}
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
           {t('profile.language')}
         </Text>
-        <View style={styles.languageOptions}>
+        <View style={styles.optionRow}>
           <TouchableOpacity
             style={[
-              styles.languageOption,
+              styles.optionBtn,
               {
-                backgroundColor: locale === 'nb' ? colors.primary : colors.surface,
+                backgroundColor: locale === 'nb' ? colors.primary : colors.background,
                 borderColor: colors.border,
               },
             ]}
@@ -123,7 +208,7 @@ export default function ProfileScreen() {
           >
             <Text
               style={[
-                styles.languageOptionText,
+                styles.optionText,
                 { color: locale === 'nb' ? '#FFFFFF' : colors.text },
               ]}
             >
@@ -132,9 +217,9 @@ export default function ProfileScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={[
-              styles.languageOption,
+              styles.optionBtn,
               {
-                backgroundColor: locale === 'en' ? colors.primary : colors.surface,
+                backgroundColor: locale === 'en' ? colors.primary : colors.background,
                 borderColor: colors.border,
               },
             ]}
@@ -142,7 +227,7 @@ export default function ProfileScreen() {
           >
             <Text
               style={[
-                styles.languageOptionText,
+                styles.optionText,
                 { color: locale === 'en' ? '#FFFFFF' : colors.text },
               ]}
             >
@@ -152,127 +237,121 @@ export default function ProfileScreen() {
         </View>
       </View>
 
+      {/* Sign out */}
       <TouchableOpacity
-        style={[styles.button, { backgroundColor: colors.error }]}
+        style={[styles.signOutBtn, { backgroundColor: colors.error }]}
         onPress={signOut}
       >
-        <Text style={styles.buttonText}>{t('auth.signOut')}</Text>
+        <Text style={styles.signOutText}>{t('auth.signOut')}</Text>
       </TouchableOpacity>
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  content: {
+    padding: 24,
     alignItems: 'center',
-    justifyContent: 'center',
   },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
+    marginBottom: 24,
   },
-  email: {
-    fontSize: 16,
+  section: {
+    width: '100%',
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 16,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    marginBottom: 12,
+  },
+  fieldLabel: {
+    fontSize: 13,
+    marginBottom: 4,
     marginTop: 8,
   },
-  emailSub: {
-    fontSize: 13,
-    marginTop: 2,
+  fieldValue: {
+    fontSize: 16,
+    fontWeight: '500',
+    marginBottom: 4,
   },
-  phoneSection: {
-    marginTop: 20,
-    width: '80%',
-    paddingVertical: 12,
-  },
-  phoneLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 6,
-  },
-  phoneRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  phoneInput: {
-    flex: 1,
+  input: {
     borderWidth: 1,
     borderRadius: 8,
     paddingHorizontal: 12,
-    paddingVertical: 8,
-    fontSize: 15,
+    paddingVertical: 10,
+    fontSize: 16,
+    marginBottom: 4,
   },
-  phoneSaveBtn: {
+  editBtn: {
     borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    justifyContent: 'center',
+    paddingVertical: 10,
+    alignItems: 'center',
+    marginTop: 12,
   },
-  phoneSaveText: {
+  editBtnText: {
     color: '#fff',
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: 15,
   },
-  themeSection: {
-    marginTop: 32,
-    width: '80%',
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    paddingVertical: 16,
+  editButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+  },
+  saveBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
     alignItems: 'center',
   },
-  themeLabel: {
-    fontSize: 16,
+  saveBtnText: {
+    color: '#fff',
     fontWeight: '600',
-    marginBottom: 12,
+    fontSize: 15,
   },
-  themeOptions: {
+  cancelBtn: {
+    flex: 1,
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center',
+    borderWidth: 1,
+  },
+  cancelBtnText: {
+    fontWeight: '600',
+    fontSize: 15,
+  },
+  optionRow: {
     flexDirection: 'row',
     gap: 8,
   },
-  themeOption: {
+  optionBtn: {
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
     borderWidth: 1,
   },
-  themeOptionText: {
+  optionText: {
     fontSize: 14,
     fontWeight: '500',
   },
-  languageSection: {
-    marginTop: 16,
-    width: '80%',
-    borderBottomWidth: 1,
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
-  languageLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  languageOptions: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  languageOption: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
-    borderWidth: 1,
-  },
-  languageOptionText: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  button: {
-    marginTop: 24,
+  signOutBtn: {
+    marginTop: 8,
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
   },
-  buttonText: {
+  signOutText: {
     color: '#fff',
     fontWeight: '600',
   },

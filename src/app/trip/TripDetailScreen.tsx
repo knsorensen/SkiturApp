@@ -87,19 +87,18 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
   };
 
   const handleCompleteTrip = async () => {
+    const doComplete = async () => {
+      await updateTrip(tripId, { status: 'completed' });
+      onBack();
+    };
     if (Platform.OS === 'web') {
       if (window.confirm('Vil du avslutte turen?')) {
-        await updateTrip(tripId, { status: 'completed' });
+        await doComplete();
       }
     } else {
       Alert.alert('Avslutt tur', 'Vil du avslutte turen?', [
         { text: 'Avbryt', style: 'cancel' },
-        {
-          text: 'Avslutt',
-          onPress: async () => {
-            await updateTrip(tripId, { status: 'completed' });
-          },
-        },
+        { text: 'Avslutt', onPress: doComplete },
       ]);
     }
   };
