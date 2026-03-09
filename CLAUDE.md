@@ -25,7 +25,7 @@ src/
 │   ├── tabs/               # Home, Map, Trips, Profile
 │   └── trip/               # CreateTrip, TripDetail, TripChat, TripPhotos, ShoppingList, TripArchive
 ├── components/
-│   ├── common/             # Button, Input, SyncStatusBar
+│   ├── common/             # Button, Input, SyncStatusBar, UserAvatar
 │   ├── map/                # TripMap, TrackingControls, LocationPicker
 │   ├── photos/             # PhotoGallery, PhotoViewer, CaptureButton
 │   ├── trip/               # TripCard, ElevationProfile
@@ -52,14 +52,17 @@ npm test                    # Run unit tests (Jest + ts-jest)
 npx tsc --noEmit            # TypeScript type check
 npm run lint                # ESLint
 npm run format              # Prettier
+npm run deploy              # Deploy dist/ to Cloudflare Pages
+npm run build:deploy        # Build web + deploy in one step
 ```
 
 ## Firebase
 
 - **Project:** skiturapp-94a50
 - **Config:** `src/services/firebase.ts`
-- **Rules:** `firebase/firestore.rules`
-- **Firestore collections:** users, trips, trips/{id}/route, trips/{id}/photos, trips/{id}/messages, trips/{id}/shoppingList, invites
+- **Rules:** `firebase/firestore.rules`, `firebase/storage.rules`
+- **Storage paths:** `users/{uid}/` (profile photos), `trips/{id}/photos/`, `trips/{id}/chat/`
+- **Firestore collections:** users, trips, trips/{id}/route, trips/{id}/photos, trips/{id}/messages, trips/{id}/shoppingList, trips/{id}/tripInvites, invites
 
 ## Development Guidelines
 

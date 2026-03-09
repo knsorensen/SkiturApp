@@ -66,9 +66,14 @@ export async function inviteNewUserToTrip(
 export async function respondToInvite(
   tripId: string,
   inviteId: string,
-  status: 'accepted' | 'declined'
+  status: 'accepted' | 'declined',
+  reason?: string
 ) {
-  await updateDoc(doc(invitesCollection(tripId), inviteId), { status });
+  const data: Record<string, unknown> = { status };
+  if (reason) {
+    data.declineReason = reason;
+  }
+  await updateDoc(doc(invitesCollection(tripId), inviteId), data);
 }
 
 export async function reinviteAll(tripId: string, invitedBy: string) {

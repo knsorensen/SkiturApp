@@ -50,6 +50,14 @@ export async function toggleShoppingItem(
   });
 }
 
+export async function updateShoppingItemText(
+  tripId: string,
+  itemId: string,
+  text: string
+) {
+  await updateDoc(doc(db, 'trips', tripId, 'shoppingList', itemId), { text });
+}
+
 export async function removeShoppingItem(tripId: string, itemId: string) {
   await deleteDoc(doc(db, 'trips', tripId, 'shoppingList', itemId));
 }

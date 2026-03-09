@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Platform, Alert } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Platform, Alert, ActionSheetIOS } from 'react-native';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
-import { db, auth } from '../../services/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import * as ImagePicker from 'expo-image-picker';
+import { db, auth, storage } from '../../services/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { signOut } from '../../services/auth';
 import { useTheme } from '../../hooks/useTheme';
 import { useThemeStore, ThemePreference } from '../../stores/themeStore';
 import { useTranslation, useLocaleStore } from '../../i18n';
+import UserAvatar from '../../components/common/UserAvatar';
 
 const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
   { label: 'System', value: 'system' },
@@ -26,8 +29,10 @@ export default function ProfileScreen() {
 
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
+  const [photoURL, setPhotoURL] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   useEffect(() => {
     if (!user?.uid) return;
@@ -36,6 +41,7 @@ export default function ProfileScreen() {
       if (snap.exists()) {
         const data = snap.data();
         setPhone(data.phone ?? '');
+        setPhotoURL(data.photoURL ?? null);
         if (data.displayName) setDisplayName(data.displayName);
       }
     });
@@ -76,6 +82,92 @@ export default function ProfileScreen() {
     }
   };
 
+  // Ref for hidden web file input
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const uploadPhoto = async (blob: Blob) => {
+    if (!user?.uid) return;
+    setUploadingPhoto(true);
+    try {
+      const filename = `users/${user.uid}/profile_${Date.now()}.jpg`;
+      const storageRef = ref(storage, filename);
+      await uploadBytes(storageRef, blob);
+      const url = await getDownloadURL(storageRef);
+      await updateDoc(doc(db, 'users', user.uid), { photoURL: url });
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { photoURL: url });
+      }
+      setPhotoURL(url);
+    } catch (err: any) {
+      const detail = err?.message || '';
+      const msg = `Kunne ikke laste opp bildet. ${detail}`;
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Feil', msg);
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleWebFileSelected = async (event: any) => {
+    const file = event.target?.files?.[0];
+    if (!file) return;
+    await uploadPhoto(file);
+    event.target.value = '';
+  };
+
+  const pickAndUploadNative = async (useCamera: boolean) => {
+    if (!user?.uid) return;
+
+    if (useCamera) {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Tillatelse', 'Vi trenger tilgang til kameraet.');
+        return;
+      }
+    } else {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Tillatelse', 'Vi trenger tilgang til bildebiblioteket.');
+        return;
+      }
+    }
+
+    const result = useCamera
+      ? await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] })
+      : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.7, allowsEditing: true, aspect: [1, 1] });
+
+    if (result.canceled || !result.assets[0]) return;
+
+    const response = await fetch(result.assets[0].uri);
+    const blob = await response.blob();
+    await uploadPhoto(blob);
+  };
+
+  const handleChangePhoto = () => {
+    if (Platform.OS === 'web') {
+      // On mobile browsers, <input type="file" accept="image/*"> natively
+      // shows a menu with Camera / Photo Library / Browse options
+      fileInputRef.current?.click();
+    } else if (Platform.OS === 'ios') {
+      ActionSheetIOS.showActionSheetWithOptions(
+        {
+          options: ['Avbryt', 'Ta bilde', 'Velg fra bibliotek'],
+          cancelButtonIndex: 0,
+        },
+        (index) => {
+          if (index === 1) pickAndUploadNative(true);
+          else if (index === 2) pickAndUploadNative(false);
+        }
+      );
+    } else {
+      Alert.alert('Endre profilbilde', 'Velg kilde', [
+        { text: 'Avbryt', style: 'cancel' },
+        { text: 'Ta bilde', onPress: () => pickAndUploadNative(true) },
+        { text: 'Velg fra bibliotek', onPress: () => pickAndUploadNative(false) },
+      ]);
+    }
+  };
+
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
@@ -83,9 +175,33 @@ export default function ProfileScreen() {
     >
       <Text style={[styles.title, { color: colors.text }]}>{t('profile.profile')}</Text>
 
+      {/* Hidden file input for web — mobile browsers show camera/library choice natively */}
+      {Platform.OS === 'web' && (
+        <input
+          ref={fileInputRef as any}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handleWebFileSelected}
+        />
+      )}
+
       {/* Profile info section */}
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Personlig informasjon</Text>
+
+        <View style={styles.avatarSection}>
+          <UserAvatar photoURL={photoURL} name={displayName || '?'} size={80} />
+          <TouchableOpacity
+            style={[styles.changePhotoBtn, { backgroundColor: colors.primary }]}
+            onPress={handleChangePhoto}
+            disabled={uploadingPhoto}
+          >
+            <Text style={styles.changePhotoBtnText}>
+              {uploadingPhoto ? 'Laster opp...' : 'Endre bilde'}
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Navn</Text>
         {editing ? (
@@ -274,6 +390,21 @@ const styles = StyleSheet.create({
     letterSpacing: 0.3,
     textTransform: 'uppercase',
     marginBottom: 12,
+  },
+  avatarSection: {
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  changePhotoBtn: {
+    marginTop: 10,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  changePhotoBtnText: {
+    color: '#fff',
+    fontWeight: '600',
+    fontSize: 13,
   },
   fieldLabel: {
     fontSize: 13,

@@ -8,6 +8,7 @@ import TripChatScreen from '../app/trip/TripChatScreen';
 import TripPhotosScreen from '../app/trip/TripPhotosScreen';
 import ShoppingListScreen from '../app/trip/ShoppingListScreen';
 import TripArchiveScreen from '../app/trip/TripArchiveScreen';
+import ParticipantsScreen from '../app/trip/ParticipantsScreen';
 import { COLORS } from '../constants';
 
 export type TripsStackParamList = {
@@ -19,6 +20,7 @@ export type TripsStackParamList = {
   TripPhotos: { tripId: string };
   ShoppingList: { tripId: string };
   TripArchive: { tripId: string };
+  Participants: undefined;
 };
 
 const Stack = createNativeStackNavigator<TripsStackParamList>();
@@ -66,6 +68,7 @@ export default function TripsNavigator() {
             onShopping={(tripId) => navigation.navigate('ShoppingList', { tripId })}
             onArchive={(tripId) => navigation.navigate('TripArchive', { tripId })}
             onEdit={(tripId) => navigation.navigate('EditTrip', { tripId })}
+            onParticipants={() => navigation.navigate('Participants')}
           />
         )}
       </Stack.Screen>
@@ -106,6 +109,11 @@ export default function TripsNavigator() {
           />
         )}
       </Stack.Screen>
+      <Stack.Screen
+        name="Participants"
+        component={ParticipantsScreen}
+        options={{ title: 'Alle brukere' }}
+      />
     </Stack.Navigator>
   );
 }

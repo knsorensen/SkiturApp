@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import HomeScreen from '../app/tabs/HomeScreen';
 import TripsNavigator from './TripsNavigator';
 import MapScreen from '../app/tabs/MapScreen';
+import UsersScreen from '../app/tabs/UsersScreen';
 import ProfileScreen from '../app/tabs/ProfileScreen';
 import { useTripStore } from '../stores/tripStore';
 import { COLORS } from '../constants';
@@ -12,6 +13,7 @@ export type MainTabParamList = {
   Home: undefined;
   TripsTab: undefined;
   Map: undefined;
+  Users: undefined;
   Profile: undefined;
 };
 
@@ -73,6 +75,16 @@ export default function MainNavigator() {
               e.preventDefault();
             }
           },
+        }}
+      />
+      <Tab.Screen
+        name="Users"
+        component={UsersScreen}
+        options={{
+          title: 'Brukere',
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="people-outline" size={size} color={color} />
+          ),
         }}
       />
       <Tab.Screen

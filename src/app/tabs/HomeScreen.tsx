@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList } from 'react-native';
-import Constants from 'expo-constants';
 import { doc, getDoc } from 'firebase/firestore';
+import appJson from '../../../app.json';
 import { db } from '../../services/firebase';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../../stores/authStore';
@@ -29,7 +29,7 @@ export default function HomeScreen() {
   const upcoming = [...active, ...planning].slice(0, 5);
   const greeting = displayName || user?.displayName || 'turvenn';
 
-  const appVersion = Constants.expoConfig?.version ?? '1.0.0';
+  const appVersion = appJson.expo.version;
 
   return (
     <View style={styles.container}>

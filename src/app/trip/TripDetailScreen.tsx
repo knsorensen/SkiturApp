@@ -11,7 +11,7 @@ import {
   Linking,
   TouchableOpacity,
 } from 'react-native';
-import { doc, onSnapshot, collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, onSnapshot, collection, addDoc, getDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { updateTrip, deleteTrip, addParticipant, removeParticipant } from '../../services/trips';
 import { subscribeToTripInvites, respondToInvite, reinviteAll } from '../../services/tripInvites';
@@ -19,9 +19,44 @@ import { useAuthStore } from '../../stores/authStore';
 import { Trip, TripInvite } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
 import Button from '../../components/common/Button';
+import UserAvatar from '../../components/common/UserAvatar';
 import TripMap from '../../components/map/TripMap';
 import WeatherWidget from '../../components/weather/WeatherWidget';
 import { COLORS } from '../../constants';
+
+interface ParticipantInfo {
+  name: string;
+  photoURL: string | null;
+}
+
+function useParticipantInfo(userIds: string[]) {
+  const [info, setInfo] = useState<Map<string, ParticipantInfo>>(new Map());
+  useEffect(() => {
+    if (userIds.length === 0) return;
+    const fetchInfo = async () => {
+      const result = new Map<string, ParticipantInfo>();
+      for (const uid of userIds) {
+        try {
+          const userDoc = await getDoc(doc(db, 'users', uid));
+          if (userDoc.exists()) {
+            const data = userDoc.data();
+            result.set(uid, {
+              name: data.displayName || 'Ukjent',
+              photoURL: data.photoURL ?? null,
+            });
+          } else {
+            result.set(uid, { name: 'Ukjent', photoURL: null });
+          }
+        } catch {
+          result.set(uid, { name: 'Ukjent', photoURL: null });
+        }
+      }
+      setInfo(result);
+    };
+    fetchInfo();
+  }, [userIds.join(',')]);
+  return info;
+}
 
 interface Props {
   tripId: string;
@@ -31,9 +66,10 @@ interface Props {
   onShopping: (tripId: string) => void;
   onArchive: (tripId: string) => void;
   onEdit: (tripId: string) => void;
+  onParticipants?: () => void;
 }
 
-export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onShopping, onArchive, onEdit }: Props) {
+export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onShopping, onArchive, onEdit, onParticipants }: Props) {
   const user = useAuthStore((s) => s.user);
   const [trip, setTrip] = useState<Trip | null>(null);
   const [invites, setInvites] = useState<TripInvite[]>([]);
@@ -43,6 +79,19 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteSending, setInviteSending] = useState(false);
   const [reinviting, setReinviting] = useState(false);
+  const [declineModalVisible, setDeclineModalVisible] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
+  const [declining, setDeclining] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, 'users', user.uid)).then((snap) => {
+      if (snap.exists()) {
+        setIsAdmin(snap.data().role === 'admin');
+      }
+    }).catch(() => {});
+  }, [user?.uid]);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, 'trips', tripId), (snapshot) => {
@@ -57,6 +106,8 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
     const unsub = subscribeToTripInvites(tripId, setInvites);
     return unsub;
   }, [tripId]);
+
+  const participantInfo = useParticipantInfo(trip?.participants ?? []);
 
   if (!trip) {
     return (
@@ -217,6 +268,42 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
     }
   };
 
+  const handleDecline = async () => {
+    if (!declineReason.trim()) {
+      const msg = 'Du må oppgi en grunn for avmelding.';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Mangler grunn', msg);
+      }
+      return;
+    }
+    if (!user?.uid) return;
+    setDeclining(true);
+    try {
+      // Find invite by uid match
+      const myInvite = invites.find((inv) => inv.uid === user.uid);
+      if (myInvite) {
+        await respondToInvite(tripId, myInvite.id, 'declined', declineReason.trim());
+      }
+      // Remove from participants if present
+      if (trip.participants.includes(user.uid)) {
+        await removeParticipant(tripId, user.uid);
+      }
+      setDeclineModalVisible(false);
+      setDeclineReason('');
+    } catch {
+      const msg = 'Kunne ikke melde av. Prøv igjen.';
+      if (Platform.OS === 'web') {
+        window.alert(msg);
+      } else {
+        Alert.alert('Feil', msg);
+      }
+    } finally {
+      setDeclining(false);
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
@@ -236,72 +323,109 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
           <InfoRow label="Sluttpunkt" value={trip.endLocation.name} />
         ) : null}
         <InfoRow label="Dato" value={formatDate(date)} />
-        <InfoRow
-          label="Deltakere"
-          value={`${trip.participants.length} person${trip.participants.length !== 1 ? 'er' : ''}`}
-        />
       </View>
 
-      {/* Invite list */}
-      {invites.length > 0 && (
-        <View style={styles.inviteSection}>
-          <View style={styles.inviteSectionHeader}>
-            <Text style={styles.inviteSectionTitle}>Inviterte deltakere</Text>
-            {isCreator && invites.some((inv) => inv.status !== 'pending') && (
-              <TouchableOpacity
-                style={styles.reinviteBtn}
-                onPress={handleReinviteAll}
-                disabled={reinviting}
-              >
-                <Text style={styles.reinviteBtnText}>
-                  {reinviting ? 'Sender...' : 'Inviter alle igjen'}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          {invites.map((inv) => {
+      {/* Participants & Invites section */}
+      <View style={styles.inviteSection}>
+        <View style={styles.inviteSectionHeader}>
+          <Text style={styles.inviteSectionTitle}>
+            Deltakere ({trip.participants.length})
+          </Text>
+          {isCreator && invites.some((inv) => inv.status !== 'pending') && (
+            <TouchableOpacity
+              style={styles.reinviteBtn}
+              onPress={handleReinviteAll}
+              disabled={reinviting}
+            >
+              <Text style={styles.reinviteBtnText}>
+                {reinviting ? 'Sender...' : 'Inviter alle igjen'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {/* Confirmed participants */}
+        {trip.participants.map((uid) => {
+          const pInfo = participantInfo.get(uid);
+          const name = pInfo?.name || 'Laster...';
+          return (
+            <View key={uid} style={styles.inviteRow}>
+              <View style={styles.avatarWrap}>
+                <UserAvatar photoURL={pInfo?.photoURL} name={name} size={32} />
+              </View>
+              <View style={styles.inviteInfo}>
+                <Text style={styles.inviteName}>{name}</Text>
+                {uid === trip.createdBy && (
+                  <Text style={styles.inviteEmail}>Opprettet turen</Text>
+                )}
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: '#D4EDDA' }]}>
+                <Text style={[styles.statusText, { color: '#155724' }]}>Deltar</Text>
+              </View>
+            </View>
+          );
+        })}
+
+        {/* Pending/accepted/declined invites (not already in participants) */}
+        {invites
+          .filter((inv) => !trip.participants.includes(inv.uid))
+          .map((inv) => {
             const isMe = user?.uid === inv.uid;
             const canRespond = isMe && inv.status === 'pending';
+            const canMeldAv = isMe && inv.status === 'accepted' && trip.status !== 'completed';
             return (
-              <View key={inv.id} style={styles.inviteRow}>
-                <View style={styles.inviteInfo}>
-                  <Text style={styles.inviteName}>{inv.displayName}</Text>
-                  {inv.email ? <Text style={styles.inviteEmail}>{inv.email}</Text> : null}
-                  {inv.phone ? <Text style={styles.inviteEmail}>{inv.phone}</Text> : null}
+              <View key={inv.id}>
+                <View style={styles.inviteRow}>
+                  <View style={styles.avatarWrap}>
+                    <UserAvatar photoURL={null} name={inv.displayName || '?'} size={32} />
+                  </View>
+                  <View style={styles.inviteInfo}>
+                    <Text style={styles.inviteName}>{inv.displayName}</Text>
+                    {inv.phone ? <Text style={styles.inviteEmail}>{inv.phone}</Text> : null}
+                    {inv.status === 'declined' && inv.declineReason && (isCreator || isAdmin) ? (
+                      <Text style={styles.declineReasonText}>«{inv.declineReason}»</Text>
+                    ) : null}
+                  </View>
+                  {canRespond ? (
+                    <View style={styles.inviteActions}>
+                      <TouchableOpacity
+                        style={styles.acceptBtn}
+                        onPress={async () => {
+                          await respondToInvite(tripId, inv.id, 'accepted');
+                          await addParticipant(tripId, user!.uid);
+                        }}
+                      >
+                        <Text style={styles.acceptText}>Deltar</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.declineBtn}
+                        onPress={async () => {
+                          await respondToInvite(tripId, inv.id, 'declined');
+                        }}
+                      >
+                        <Text style={styles.declineText}>Deltar ikke</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <View style={[styles.statusBadge, statusBadgeStyle(inv.status)]}>
+                      <Text style={[styles.statusText, statusTextStyle(inv.status)]}>
+                        {inviteStatusLabel(inv.status)}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-                {canRespond ? (
-                  <View style={styles.inviteActions}>
-                    <TouchableOpacity
-                      style={styles.acceptBtn}
-                      onPress={async () => {
-                        await respondToInvite(tripId, inv.id, 'accepted');
-                        await addParticipant(tripId, user!.uid);
-                      }}
-                    >
-                      <Text style={styles.acceptText}>Deltar</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={styles.declineBtn}
-                      onPress={async () => {
-                        await respondToInvite(tripId, inv.id, 'declined');
-                        await removeParticipant(tripId, user!.uid);
-                      }}
-                    >
-                      <Text style={styles.declineText}>Deltar ikke</Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  <View style={[styles.statusBadge, statusBadgeStyle(inv.status)]}>
-                    <Text style={[styles.statusText, statusTextStyle(inv.status)]}>
-                      {inviteStatusLabel(inv.status)}
-                    </Text>
-                  </View>
+                {canMeldAv && (
+                  <TouchableOpacity
+                    style={styles.meldAvBtn}
+                    onPress={() => setDeclineModalVisible(true)}
+                  >
+                    <Text style={styles.meldAvBtnText}>Meld meg av turen</Text>
+                  </TouchableOpacity>
                 )}
               </View>
             );
           })}
-        </View>
-      )}
+      </View>
 
       {trip.location.latitude !== 0 && (
         <View style={styles.mapContainer}>
@@ -344,6 +468,12 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
           </>
         )}
         <Button title="Inviter deltaker" onPress={() => setInviteModalVisible(true)} variant="secondary" />
+        {onParticipants && (
+          <>
+            <View style={styles.spacer} />
+            <Button title="Alle brukere" onPress={onParticipants} variant="secondary" />
+          </>
+        )}
 
         {isCreator && trip.status === 'planning' && (
           <>
@@ -430,6 +560,47 @@ export default function TripDetailScreen({ tripId, onBack, onChat, onPhotos, onS
                   title={inviteSending ? 'Sender...' : 'Send SMS'}
                   onPress={handleInviteSubmit}
                   disabled={inviteSending}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={declineModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setDeclineModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Meld av tur</Text>
+            <Text style={styles.inputLabel}>Grunn for avmelding *</Text>
+            <TextInput
+              style={[styles.modalInput, { height: 80, textAlignVertical: 'top' }]}
+              placeholder="Skriv hvorfor du melder deg av..."
+              placeholderTextColor={COLORS.textSecondary}
+              value={declineReason}
+              onChangeText={setDeclineReason}
+              multiline
+            />
+            <View style={styles.modalButtons}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Button
+                  title="Avbryt"
+                  onPress={() => {
+                    setDeclineModalVisible(false);
+                    setDeclineReason('');
+                  }}
+                  variant="secondary"
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Button
+                  title={declining ? 'Melder av...' : 'Meld av'}
+                  onPress={handleDecline}
+                  disabled={declining}
+                  variant="danger"
                 />
               </View>
             </View>
@@ -604,6 +775,9 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '600',
   },
+  avatarWrap: {
+    marginRight: 10,
+  },
   inviteRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -625,6 +799,25 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: COLORS.textSecondary,
     marginTop: 1,
+  },
+  meldAvBtn: {
+    backgroundColor: '#F8D7DA',
+    borderRadius: 8,
+    paddingVertical: 10,
+    alignItems: 'center' as const,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  meldAvBtnText: {
+    color: '#721C24',
+    fontWeight: '700' as const,
+    fontSize: 14,
+  },
+  declineReasonText: {
+    fontSize: 12,
+    color: COLORS.textSecondary,
+    fontStyle: 'italic',
+    marginTop: 2,
   },
   inviteActions: {
     flexDirection: 'row',

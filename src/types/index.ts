@@ -7,6 +7,7 @@ export interface User {
   phone: string;
   photoURL: string | null;
   fcmTokens: string[];
+  role: 'user' | 'admin';
   createdAt: Timestamp;
 }
 
@@ -97,5 +98,6 @@ export interface TripInvite {
   phone: string;
   invitedBy: string;
   status: 'pending' | 'accepted' | 'declined';
+  declineReason?: string;
   createdAt: Timestamp;
 }

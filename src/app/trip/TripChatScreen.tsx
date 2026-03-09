@@ -14,12 +14,15 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 import { useAuthStore } from '../../stores/authStore';
 import { subscribeToMessages, sendMessage } from '../../services/chat';
 import { addParticipant } from '../../services/trips';
 import { Message } from '../../types';
 import { formatTime } from '../../utils/dateUtils';
 import { COLORS } from '../../constants';
+import UserAvatar from '../../components/common/UserAvatar';
 
 interface Props {
   tripId: string;
@@ -30,11 +33,39 @@ export default function TripChatScreen({ tripId }: Props) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const flatListRef = useRef<FlatList>(null);
+  const [userPhotos, setUserPhotos] = useState<Map<string, string | null>>(new Map());
+  const fetchedUids = useRef(new Set<string>());
 
   useEffect(() => {
     const unsubscribe = subscribeToMessages(tripId, setMessages);
     return unsubscribe;
   }, [tripId]);
+
+  // Fetch photo URLs for message senders
+  useEffect(() => {
+    const newUids = messages
+      .map((m) => m.userId)
+      .filter((uid) => !fetchedUids.current.has(uid));
+    if (newUids.length === 0) return;
+    const unique = [...new Set(newUids)];
+    unique.forEach((uid) => fetchedUids.current.add(uid));
+    Promise.all(
+      unique.map(async (uid) => {
+        try {
+          const snap = await getDoc(doc(db, 'users', uid));
+          return [uid, snap.exists() ? snap.data().photoURL ?? null : null] as const;
+        } catch {
+          return [uid, null] as const;
+        }
+      })
+    ).then((results) => {
+      setUserPhotos((prev) => {
+        const next = new Map(prev);
+        for (const [uid, url] of results) next.set(uid, url);
+        return next;
+      });
+    });
+  }, [messages]);
 
   const handleSend = async () => {
     if (!user || !text.trim()) return;
@@ -79,23 +110,47 @@ export default function TripChatScreen({ tripId }: Props) {
   const renderMessage = ({ item }: { item: Message }) => {
     const isMe = item.userId === user?.uid;
     const time = item.createdAt?.toDate?.() ?? new Date();
+    const senderName = (item as any).displayName || '';
+
+    if (isMe) {
+      return (
+        <View style={[styles.bubble, styles.bubbleMe]}>
+          {item.imageURL ? (
+            <Image source={{ uri: item.imageURL }} style={styles.chatImage} />
+          ) : null}
+          {item.text ? (
+            <Text style={[styles.messageText, styles.messageTextMe]}>
+              {item.text}
+            </Text>
+          ) : null}
+          <Text style={[styles.time, styles.timeMe]}>
+            {formatTime(time)}
+          </Text>
+        </View>
+      );
+    }
 
     return (
-      <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleOther]}>
-        {!isMe && (item as any).displayName ? (
-          <Text style={styles.senderName}>{(item as any).displayName}</Text>
-        ) : null}
-        {item.imageURL ? (
-          <Image source={{ uri: item.imageURL }} style={styles.chatImage} />
-        ) : null}
-        {item.text ? (
-          <Text style={[styles.messageText, isMe && styles.messageTextMe]}>
-            {item.text}
-          </Text>
-        ) : null}
-        <Text style={[styles.time, isMe && styles.timeMe]}>
-          {formatTime(time)}
-        </Text>
+      <View style={styles.messageRow}>
+        <View style={styles.messageAvatar}>
+          <UserAvatar
+            photoURL={userPhotos.get(item.userId)}
+            name={senderName}
+            size={28}
+          />
+        </View>
+        <View style={[styles.bubble, styles.bubbleOther]}>
+          {senderName ? (
+            <Text style={styles.senderName}>{senderName}</Text>
+          ) : null}
+          {item.imageURL ? (
+            <Image source={{ uri: item.imageURL }} style={styles.chatImage} />
+          ) : null}
+          {item.text ? (
+            <Text style={styles.messageText}>{item.text}</Text>
+          ) : null}
+          <Text style={styles.time}>{formatTime(time)}</Text>
+        </View>
       </View>
     );
   };
@@ -146,6 +201,15 @@ const styles = StyleSheet.create({
     padding: 16,
     paddingBottom: 8,
   },
+  messageRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    marginBottom: 8,
+  },
+  messageAvatar: {
+    marginRight: 6,
+    marginBottom: 0,
+  },
   bubble: {
     maxWidth: '80%',
     padding: 12,
@@ -163,6 +227,7 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 4,
     borderWidth: 1,
     borderColor: COLORS.border,
+    marginBottom: 0,
   },
   senderName: {
     fontSize: 12,
