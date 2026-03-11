@@ -37,7 +37,7 @@ export default function UsersScreen() {
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
 
-  const isAdmin = currentUser?.email === 'knsorensen@gmail.com' ||
+  const isAdmin = currentUser?.email === 'knsorensen@gmail.com' || currentUser?.email === 'daeand@gmail.com' ||
     users.find((u) => u.uid === currentUser?.uid)?.role === 'admin';
 
   const loadUsers = useCallback(() => {

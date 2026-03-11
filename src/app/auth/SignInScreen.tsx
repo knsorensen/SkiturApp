@@ -80,6 +80,8 @@ export default function SignInScreen({ onNavigateToSignUp }: Props) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            returnKeyType="go"
+            onSubmitEditing={handleSignIn}
           />
 
           <TouchableOpacity

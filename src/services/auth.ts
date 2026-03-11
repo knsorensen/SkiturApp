@@ -9,7 +9,7 @@ import {
 import { doc, setDoc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, db } from './firebase';
 
-const ADMIN_EMAILS = ['knsorensen@gmail.com'];
+const ADMIN_EMAILS = ['knsorensen@gmail.com', 'daeand@gmail.com'];
 
 export function onAuthChange(callback: (user: FirebaseUser | null) => void) {
   return onAuthStateChanged(auth, callback);
