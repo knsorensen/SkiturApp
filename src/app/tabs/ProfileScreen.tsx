@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, Platform, Alert, ActionSheetIOS } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { updateProfile } from 'firebase/auth';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -9,23 +10,36 @@ import { useAuthStore } from '../../stores/authStore';
 import { signOut } from '../../services/auth';
 import { useTheme } from '../../hooks/useTheme';
 import { useThemeStore, ThemePreference } from '../../stores/themeStore';
+import { PALETTES, PaletteId } from '../../constants';
 import { useTranslation, useLocaleStore } from '../../i18n';
 import UserAvatar from '../../components/common/UserAvatar';
 
-const THEME_OPTIONS: { label: string; value: ThemePreference }[] = [
-  { label: 'System', value: 'system' },
-  { label: 'Lys', value: 'light' },
-  { label: 'Mork', value: 'dark' },
+const THEME_OPTIONS: { label: string; value: ThemePreference; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { label: 'System', value: 'system', icon: 'phone-portrait-outline' },
+  { label: 'Lys', value: 'light', icon: 'sunny-outline' },
+  { label: 'Mork', value: 'dark', icon: 'moon-outline' },
 ];
 
 export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
   const { colors } = useTheme();
-  const preference = useThemeStore((s) => s.preference);
-  const setPreference = useThemeStore((s) => s.setPreference);
+  const themeStore = useThemeStore();
+  const { preference, palette: paletteId } = themeStore;
   const { t } = useTranslation();
   const locale = useLocaleStore((s) => s.locale);
   const setLocale = useLocaleStore((s) => s.setLocale);
+
+  // Load palette from Firestore on mount
+  useEffect(() => {
+    if (!user?.uid) return;
+    getDoc(doc(db, 'users', user.uid)).then((snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data.palette) useThemeStore.getState().setPalette(data.palette);
+        if (data.themePreference) useThemeStore.getState().setPreference(data.themePreference);
+      }
+    });
+  }, [user?.uid]);
 
   const [displayName, setDisplayName] = useState('');
   const [phone, setPhone] = useState('');
@@ -82,7 +96,6 @@ export default function ProfileScreen() {
     }
   };
 
-  // Ref for hidden web file input
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const uploadPhoto = async (blob: Blob) => {
@@ -145,8 +158,6 @@ export default function ProfileScreen() {
 
   const handleChangePhoto = () => {
     if (Platform.OS === 'web') {
-      // On mobile browsers, <input type="file" accept="image/*"> natively
-      // shows a menu with Camera / Photo Library / Browse options
       fileInputRef.current?.click();
     } else if (Platform.OS === 'ios') {
       ActionSheetIOS.showActionSheetWithOptions(
@@ -173,9 +184,6 @@ export default function ProfileScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={styles.content}
     >
-      <Text style={[styles.title, { color: colors.text }]}>{t('profile.profile')}</Text>
-
-      {/* Hidden file input for web — mobile browsers show camera/library choice natively */}
       {Platform.OS === 'web' && (
         <input
           ref={fileInputRef as any}
@@ -186,67 +194,95 @@ export default function ProfileScreen() {
         />
       )}
 
-      {/* Profile info section */}
-      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Personlig informasjon</Text>
+      {/* Profile header card */}
+      <View style={[styles.profileCard, { backgroundColor: colors.surface }]}>
+        <TouchableOpacity onPress={handleChangePhoto} disabled={uploadingPhoto} activeOpacity={0.8}>
+          <View style={styles.avatarContainer}>
+            <UserAvatar photoURL={photoURL} name={displayName || '?'} size={90} />
+            <View style={[styles.cameraIcon, { backgroundColor: colors.primary }]}>
+              <Ionicons name="camera" size={14} color="#fff" />
+            </View>
+          </View>
+        </TouchableOpacity>
+        {uploadingPhoto && (
+          <Text style={[styles.uploadingText, { color: colors.textSecondary }]}>Laster opp...</Text>
+        )}
+        <Text style={[styles.profileName, { color: colors.text }]}>
+          {displayName || 'Uten navn'}
+        </Text>
+        <Text style={[styles.profileEmail, { color: colors.textSecondary }]}>
+          {user?.email}
+        </Text>
+      </View>
 
-        <View style={styles.avatarSection}>
-          <UserAvatar photoURL={photoURL} name={displayName || '?'} size={80} />
-          <TouchableOpacity
-            style={[styles.changePhotoBtn, { backgroundColor: colors.primary }]}
-            onPress={handleChangePhoto}
-            disabled={uploadingPhoto}
-          >
-            <Text style={styles.changePhotoBtnText}>
-              {uploadingPhoto ? 'Laster opp...' : 'Endre bilde'}
+      {/* Personal info section */}
+      <View style={[styles.section, { backgroundColor: colors.surface }]}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderLeft}>
+            <Ionicons name="person-outline" size={18} color={colors.textSecondary} />
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+              Personlig informasjon
             </Text>
-          </TouchableOpacity>
+          </View>
+          {!editing && (
+            <TouchableOpacity onPress={() => setEditing(true)} activeOpacity={0.7}>
+              <Ionicons name="create-outline" size={20} color={colors.primary} />
+            </TouchableOpacity>
+          )}
         </View>
 
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Navn</Text>
-        {editing ? (
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-            value={displayName}
-            onChangeText={setDisplayName}
-            placeholder="Ditt navn"
-            placeholderTextColor={colors.textSecondary}
-            autoCapitalize="words"
-          />
-        ) : (
+        <View style={styles.fieldGroup}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Navn</Text>
+          {editing ? (
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+              value={displayName}
+              onChangeText={setDisplayName}
+              placeholder="Ditt navn"
+              placeholderTextColor={colors.textSecondary}
+              autoCapitalize="words"
+            />
+          ) : (
+            <Text style={[styles.fieldValue, { color: colors.text }]}>
+              {displayName || '-'}
+            </Text>
+          )}
+        </View>
+
+        <View style={[styles.fieldGroup, styles.fieldGroupBorder, { borderTopColor: colors.border }]}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>E-post</Text>
           <Text style={[styles.fieldValue, { color: colors.text }]}>
-            {displayName || '-'}
+            {user?.email || '-'}
           </Text>
-        )}
+        </View>
 
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>E-post</Text>
-        <Text style={[styles.fieldValue, { color: colors.text }]}>
-          {user?.email || '-'}
-        </Text>
+        <View style={[styles.fieldGroup, styles.fieldGroupBorder, { borderTopColor: colors.border }]}>
+          <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Mobilnummer</Text>
+          {editing ? (
+            <TextInput
+              style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+              value={phone}
+              onChangeText={setPhone}
+              placeholder="Ditt mobilnummer"
+              placeholderTextColor={colors.textSecondary}
+              keyboardType="phone-pad"
+            />
+          ) : (
+            <Text style={[styles.fieldValue, { color: colors.text }]}>
+              {phone || '-'}
+            </Text>
+          )}
+        </View>
 
-        <Text style={[styles.fieldLabel, { color: colors.textSecondary }]}>Mobilnummer</Text>
-        {editing ? (
-          <TextInput
-            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="Ditt mobilnummer"
-            placeholderTextColor={colors.textSecondary}
-            keyboardType="phone-pad"
-          />
-        ) : (
-          <Text style={[styles.fieldValue, { color: colors.text }]}>
-            {phone || '-'}
-          </Text>
-        )}
-
-        {editing ? (
+        {editing && (
           <View style={styles.editButtons}>
             <TouchableOpacity
               style={[styles.saveBtn, { backgroundColor: colors.primary }]}
               onPress={handleSave}
               disabled={saving}
+              activeOpacity={0.8}
             >
+              <Ionicons name="checkmark" size={18} color="#fff" />
               <Text style={styles.saveBtnText}>{saving ? 'Lagrer...' : 'Lagre'}</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -258,23 +294,24 @@ export default function ProfileScreen() {
                   if (snap.exists()) setPhone(snap.data().phone ?? '');
                 });
               }}
+              activeOpacity={0.7}
             >
-              <Text style={[styles.cancelBtnText, { color: colors.text }]}>Avbryt</Text>
+              <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>Avbryt</Text>
             </TouchableOpacity>
           </View>
-        ) : (
-          <TouchableOpacity
-            style={[styles.editBtn, { backgroundColor: colors.primary }]}
-            onPress={() => setEditing(true)}
-          >
-            <Text style={styles.editBtnText}>Rediger profil</Text>
-          </TouchableOpacity>
         )}
       </View>
 
-      {/* Theme section */}
-      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+      {/* Settings section */}
+      <View style={[styles.section, { backgroundColor: colors.surface }]}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderLeft}>
+            <Ionicons name="settings-outline" size={18} color={colors.textSecondary} />
+            <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Innstillinger</Text>
+          </View>
+        </View>
+
+        <Text style={[styles.settingLabel, { color: colors.text }]}>
           {locale === 'nb' ? 'Tema' : 'Theme'}
         </Text>
         <View style={styles.optionRow}>
@@ -286,16 +323,104 @@ export default function ProfileScreen() {
                 style={[
                   styles.optionBtn,
                   {
-                    backgroundColor: isActive ? colors.primary : colors.background,
-                    borderColor: colors.border,
+                    backgroundColor: isActive ? colors.primary + '15' : colors.background,
+                    borderColor: isActive ? colors.primary : colors.border,
                   },
                 ]}
-                onPress={() => setPreference(option.value)}
+                onPress={() => {
+                  useThemeStore.getState().setPreference(option.value);
+                  if (user?.uid) updateDoc(doc(db, 'users', user.uid), { themePreference: option.value }).catch(() => {});
+                }}
+                activeOpacity={0.7}
+              >
+                <Ionicons name={option.icon} size={16} color={isActive ? colors.primary : colors.textSecondary} />
+                <Text
+                  style={[
+                    styles.optionText,
+                    { color: isActive ? colors.primary : colors.text },
+                    isActive && styles.optionTextActive,
+                  ]}
+                >
+                  {option.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.settingLabel, { color: colors.text, marginTop: 16 }]}>
+          Fargepalett
+        </Text>
+        <View style={styles.paletteRow}>
+          {(Object.keys(PALETTES) as PaletteId[]).map((id) => {
+            const p = PALETTES[id];
+            const isActive = paletteId === id;
+            const icon: keyof typeof Ionicons.glyphMap =
+              id === 'nordic' ? 'snow-outline' :
+              id === 'alpine' ? 'bonfire-outline' : 'flash-outline';
+            return (
+              <TouchableOpacity
+                key={id}
+                style={[
+                  styles.paletteBtn,
+                  {
+                    borderColor: isActive ? p.preview[0] : colors.border,
+                    backgroundColor: isActive ? p.preview[0] + '18' : colors.background,
+                  },
+                ]}
+                onPress={() => {
+                  useThemeStore.getState().setPalette(id);
+                  if (user?.uid) updateDoc(doc(db, 'users', user.uid), { palette: id }).catch(() => {});
+                }}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.paletteIconWrap, { backgroundColor: p.preview[0] + '20' }]}>
+                  <Ionicons name={icon} size={24} color={p.preview[0]} />
+                </View>
+                <Text
+                  style={[
+                    styles.paletteLabel,
+                    { color: isActive ? p.preview[0] : colors.text },
+                    isActive && { fontWeight: '700' },
+                  ]}
+                >
+                  {p.label}
+                </Text>
+                {isActive && (
+                  <Ionicons name="checkmark-circle" size={18} color={p.preview[0]} style={{ marginTop: 2 }} />
+                )}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={[styles.settingLabel, { color: colors.text, marginTop: 16 }]}>
+          {t('profile.language')}
+        </Text>
+        <View style={styles.optionRow}>
+          {[
+            { label: t('profile.languageNorwegian'), value: 'nb' as const },
+            { label: t('profile.languageEnglish'), value: 'en' as const },
+          ].map((option) => {
+            const isActive = locale === option.value;
+            return (
+              <TouchableOpacity
+                key={option.value}
+                style={[
+                  styles.optionBtn,
+                  {
+                    backgroundColor: isActive ? colors.primary + '15' : colors.background,
+                    borderColor: isActive ? colors.primary : colors.border,
+                  },
+                ]}
+                onPress={() => setLocale(option.value)}
+                activeOpacity={0.7}
               >
                 <Text
                   style={[
                     styles.optionText,
-                    { color: isActive ? '#FFFFFF' : colors.text },
+                    { color: isActive ? colors.primary : colors.text },
+                    isActive && styles.optionTextActive,
                   ]}
                 >
                   {option.label}
@@ -306,59 +431,14 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      {/* Language section */}
-      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
-          {t('profile.language')}
-        </Text>
-        <View style={styles.optionRow}>
-          <TouchableOpacity
-            style={[
-              styles.optionBtn,
-              {
-                backgroundColor: locale === 'nb' ? colors.primary : colors.background,
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={() => setLocale('nb')}
-          >
-            <Text
-              style={[
-                styles.optionText,
-                { color: locale === 'nb' ? '#FFFFFF' : colors.text },
-              ]}
-            >
-              {t('profile.languageNorwegian')}
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.optionBtn,
-              {
-                backgroundColor: locale === 'en' ? colors.primary : colors.background,
-                borderColor: colors.border,
-              },
-            ]}
-            onPress={() => setLocale('en')}
-          >
-            <Text
-              style={[
-                styles.optionText,
-                { color: locale === 'en' ? '#FFFFFF' : colors.text },
-              ]}
-            >
-              {t('profile.languageEnglish')}
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       {/* Sign out */}
       <TouchableOpacity
-        style={[styles.signOutBtn, { backgroundColor: colors.error }]}
+        style={[styles.signOutBtn, { borderColor: colors.error }]}
         onPress={signOut}
+        activeOpacity={0.7}
       >
-        <Text style={styles.signOutText}>{t('auth.signOut')}</Text>
+        <Ionicons name="log-out-outline" size={18} color={colors.error} />
+        <Text style={[styles.signOutText, { color: colors.error }]}>{t('auth.signOut')}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -369,82 +449,113 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 24,
-    alignItems: 'center',
+    padding: 20,
+    maxWidth: 520,
+    width: '100%',
+    alignSelf: 'center',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 24,
+  profileCard: {
+    alignItems: 'center',
+    borderRadius: 16,
+    padding: 28,
+    marginBottom: 16,
+    ...Platform.select({
+      web: { boxShadow: '0 1px 4px rgba(0,0,0,0.06)' },
+      default: { elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 },
+    }),
+  },
+  avatarContainer: {
+    position: 'relative',
+  },
+  cameraIcon: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#fff',
+  },
+  uploadingText: {
+    fontSize: 12,
+    marginTop: 6,
+  },
+  profileName: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginTop: 14,
+    letterSpacing: -0.3,
+  },
+  profileEmail: {
+    fontSize: 14,
+    marginTop: 2,
   },
   section: {
-    width: '100%',
-    borderRadius: 12,
-    borderWidth: 1,
-    padding: 16,
+    borderRadius: 14,
+    padding: 18,
     marginBottom: 16,
+    ...Platform.select({
+      web: { boxShadow: '0 1px 4px rgba(0,0,0,0.06)' },
+      default: { elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 4 },
+    }),
+  },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 14,
+  },
+  sectionHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   sectionTitle: {
     fontSize: 13,
-    fontWeight: '700',
-    letterSpacing: 0.3,
-    textTransform: 'uppercase',
-    marginBottom: 12,
-  },
-  avatarSection: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  changePhotoBtn: {
-    marginTop: 10,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  changePhotoBtnText: {
-    color: '#fff',
     fontWeight: '600',
-    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  fieldGroup: {
+    paddingVertical: 10,
+  },
+  fieldGroupBorder: {
+    borderTopWidth: 1,
   },
   fieldLabel: {
-    fontSize: 13,
+    fontSize: 12,
+    fontWeight: '500',
     marginBottom: 4,
-    marginTop: 8,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
   },
   fieldValue: {
     fontSize: 16,
     fontWeight: '500',
-    marginBottom: 4,
   },
   input: {
     borderWidth: 1,
-    borderRadius: 8,
+    borderRadius: 10,
     paddingHorizontal: 12,
     paddingVertical: 10,
     fontSize: 16,
-    marginBottom: 4,
-  },
-  editBtn: {
-    borderRadius: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-    marginTop: 12,
-  },
-  editBtnText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
   },
   editButtons: {
     flexDirection: 'row',
-    gap: 8,
-    marginTop: 12,
+    gap: 10,
+    marginTop: 14,
   },
   saveBtn: {
     flex: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
+    flexDirection: 'row',
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
   },
   saveBtnText: {
     color: '#fff',
@@ -453,8 +564,8 @@ const styles = StyleSheet.create({
   },
   cancelBtn: {
     flex: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: 'center',
     borderWidth: 1,
   },
@@ -462,28 +573,70 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
   },
+  settingLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 10,
+  },
   optionRow: {
     flexDirection: 'row',
     gap: 8,
+    flexWrap: 'wrap',
   },
   optionBtn: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
     borderWidth: 1,
+    gap: 6,
   },
   optionText: {
     fontSize: 14,
     fontWeight: '500',
   },
+  optionTextActive: {
+    fontWeight: '600',
+  },
+  paletteRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  paletteBtn: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 10,
+    borderRadius: 14,
+    borderWidth: 2,
+    gap: 6,
+    minWidth: 95,
+  },
+  paletteIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  paletteLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
   signOutBtn: {
-    marginTop: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 32,
   },
   signOutText: {
-    color: '#fff',
     fontWeight: '600',
+    fontSize: 15,
   },
 });

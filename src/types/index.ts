@@ -77,6 +77,19 @@ export interface ShoppingItem {
   createdAt: Timestamp;
 }
 
+export type POIIcon = 'martini' | 'cabin' | 'parking' | 'viewpoint' | 'water' | 'danger' | 'food' | 'campfire' | 'flag';
+
+export interface PointOfInterest {
+  id: string;
+  tripId: string;
+  name: string;
+  icon: POIIcon;
+  latitude: number;
+  longitude: number;
+  addedBy: string;
+  createdAt: Timestamp;
+}
+
 export interface Invite {
   id: string;
   tripId: string;

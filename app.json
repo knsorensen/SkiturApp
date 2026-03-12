@@ -12,7 +12,10 @@
       "backgroundColor": "#ffffff"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyCamTQqgJrbJy7wvbJ-yG4V2uu5XN28oQ8"
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -22,7 +25,12 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.SkiturApp"
+      "package": "com.anonymous.SkiturApp",
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyCamTQqgJrbJy7wvbJ-yG4V2uu5XN28oQ8"
+        }
+      }
     },
     "web": {
       "favicon": "./assets/favicon.png"

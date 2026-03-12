@@ -11,17 +11,18 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { storage } from '../../services/firebase';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import { useAuthStore } from '../../stores/authStore';
+import { useTheme } from '../../hooks/useTheme';
 import { subscribeToMessages, sendMessage } from '../../services/chat';
 import { addParticipant } from '../../services/trips';
 import { Message } from '../../types';
 import { formatTime } from '../../utils/dateUtils';
-import { COLORS } from '../../constants';
 import UserAvatar from '../../components/common/UserAvatar';
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
 
 export default function TripChatScreen({ tripId }: Props) {
   const user = useAuthStore((s) => s.user);
+  const { colors } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState('');
   const flatListRef = useRef<FlatList>(null);
@@ -41,7 +43,6 @@ export default function TripChatScreen({ tripId }: Props) {
     return unsubscribe;
   }, [tripId]);
 
-  // Fetch photo URLs for message senders
   useEffect(() => {
     const newUids = messages
       .map((m) => m.userId)
@@ -73,7 +74,6 @@ export default function TripChatScreen({ tripId }: Props) {
     setText('');
     const displayName = user.displayName || user.email?.split('@')[0] || 'Ukjent';
     await sendMessage(tripId, user.uid, msg, null, displayName);
-    // Auto-join as participant if not already
     addParticipant(tripId, user.uid).catch(() => {});
   };
 
@@ -114,16 +114,16 @@ export default function TripChatScreen({ tripId }: Props) {
 
     if (isMe) {
       return (
-        <View style={[styles.bubble, styles.bubbleMe]}>
+        <View style={[styles.bubble, styles.bubbleMe, { backgroundColor: colors.primary }]}>
           {item.imageURL ? (
             <Image source={{ uri: item.imageURL }} style={styles.chatImage} />
           ) : null}
           {item.text ? (
-            <Text style={[styles.messageText, styles.messageTextMe]}>
+            <Text style={styles.messageTextMe}>
               {item.text}
             </Text>
           ) : null}
-          <Text style={[styles.time, styles.timeMe]}>
+          <Text style={styles.timeMe}>
             {formatTime(time)}
           </Text>
         </View>
@@ -136,20 +136,20 @@ export default function TripChatScreen({ tripId }: Props) {
           <UserAvatar
             photoURL={userPhotos.get(item.userId)}
             name={senderName}
-            size={28}
+            size={30}
           />
         </View>
-        <View style={[styles.bubble, styles.bubbleOther]}>
+        <View style={[styles.bubble, styles.bubbleOther, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {senderName ? (
-            <Text style={styles.senderName}>{senderName}</Text>
+            <Text style={[styles.senderName, { color: colors.primary }]}>{senderName}</Text>
           ) : null}
           {item.imageURL ? (
             <Image source={{ uri: item.imageURL }} style={styles.chatImage} />
           ) : null}
           {item.text ? (
-            <Text style={styles.messageText}>{item.text}</Text>
+            <Text style={[styles.messageText, { color: colors.text }]}>{item.text}</Text>
           ) : null}
-          <Text style={styles.time}>{formatTime(time)}</Text>
+          <Text style={[styles.time, { color: colors.textSecondary }]}>{formatTime(time)}</Text>
         </View>
       </View>
     );
@@ -157,7 +157,7 @@ export default function TripChatScreen({ tripId }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       keyboardVerticalOffset={90}
     >
@@ -169,23 +169,29 @@ export default function TripChatScreen({ tripId }: Props) {
         contentContainerStyle={styles.list}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
       />
-      <View style={styles.inputRow}>
-        <TouchableOpacity style={styles.photoButton} onPress={handleSendPhoto}>
-          <Text style={styles.photoButtonText}>+</Text>
+      <View style={[styles.inputRow, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+        <TouchableOpacity
+          style={[styles.photoButton, { backgroundColor: colors.primary + '15' }]}
+          onPress={handleSendPhoto}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="image-outline" size={22} color={colors.primary} />
         </TouchableOpacity>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { backgroundColor: colors.background, color: colors.text }]}
           placeholder="Skriv en melding..."
+          placeholderTextColor={colors.textSecondary}
           value={text}
           onChangeText={setText}
           multiline
         />
         <TouchableOpacity
-          style={[styles.sendButton, !text.trim() && styles.sendDisabled]}
+          style={[styles.sendButton, { backgroundColor: colors.primary }, !text.trim() && styles.sendDisabled]}
           onPress={handleSend}
           disabled={!text.trim()}
+          activeOpacity={0.7}
         >
-          <Text style={styles.sendText}>Send</Text>
+          <Ionicons name="send" size={18} color="#fff" />
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -195,7 +201,9 @@ export default function TripChatScreen({ tripId }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
+    maxWidth: 800,
+    width: '100%',
+    alignSelf: 'center',
   },
   list: {
     padding: 16,
@@ -204,61 +212,59 @@ const styles = StyleSheet.create({
   messageRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginBottom: 8,
+    marginBottom: 10,
   },
   messageAvatar: {
-    marginRight: 6,
+    marginRight: 8,
     marginBottom: 0,
   },
   bubble: {
-    maxWidth: '80%',
+    maxWidth: '75%',
     padding: 12,
-    borderRadius: 16,
-    marginBottom: 8,
+    borderRadius: 18,
+    marginBottom: 10,
   },
   bubbleMe: {
-    backgroundColor: COLORS.primary,
     alignSelf: 'flex-end',
     borderBottomRightRadius: 4,
   },
   bubbleOther: {
-    backgroundColor: COLORS.surface,
     alignSelf: 'flex-start',
     borderBottomLeftRadius: 4,
     borderWidth: 1,
-    borderColor: COLORS.border,
     marginBottom: 0,
   },
   senderName: {
     fontSize: 12,
     fontWeight: '700',
-    color: COLORS.primary,
-    marginBottom: 2,
+    marginBottom: 3,
   },
   messageText: {
     fontSize: 15,
-    color: COLORS.text,
-    lineHeight: 20,
+    lineHeight: 21,
   },
   messageTextMe: {
+    fontSize: 15,
+    lineHeight: 21,
     color: '#fff',
   },
   time: {
     fontSize: 11,
-    color: COLORS.textSecondary,
     marginTop: 4,
     alignSelf: 'flex-end',
   },
   timeMe: {
+    fontSize: 11,
     color: 'rgba(255,255,255,0.7)',
+    marginTop: 4,
+    alignSelf: 'flex-end',
   },
   inputRow: {
     flexDirection: 'row',
     alignItems: 'flex-end',
     padding: 12,
-    backgroundColor: COLORS.surface,
+    gap: 8,
     borderTopWidth: 1,
-    borderTopColor: COLORS.border,
   },
   chatImage: {
     width: 200,
@@ -267,43 +273,28 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   photoButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 8,
-  },
-  photoButtonText: {
-    color: '#fff',
-    fontSize: 22,
-    fontWeight: '600',
-    lineHeight: 24,
   },
   input: {
     flex: 1,
-    backgroundColor: COLORS.background,
     borderRadius: 20,
     paddingHorizontal: 16,
     paddingVertical: 10,
     fontSize: 15,
     maxHeight: 100,
-    color: COLORS.text,
   },
   sendButton: {
-    marginLeft: 8,
-    backgroundColor: COLORS.primary,
+    width: 40,
+    height: 40,
     borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   sendDisabled: {
     opacity: 0.4,
-  },
-  sendText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 15,
   },
 });

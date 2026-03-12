@@ -10,6 +10,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import {
   fetchAllUsers,
   createUser,
@@ -18,12 +19,15 @@ import {
 } from '../../services/users';
 import { subscribeToTrips } from '../../services/trips';
 import { useAuthStore } from '../../stores/authStore';
+import { useTheme } from '../../hooks/useTheme';
+import { useResponsive } from '../../hooks/useResponsive';
 import { User, Trip } from '../../types';
-import { COLORS } from '../../constants';
 import UserAvatar from '../../components/common/UserAvatar';
 
 export default function UsersScreen() {
   const currentUser = useAuthStore((s) => s.user);
+  const { colors } = useTheme();
+  const { isWide } = useResponsive();
   const [users, setUsers] = useState<User[]>([]);
   const [trips, setTrips] = useState<Trip[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,7 +37,7 @@ export default function UsersScreen() {
   const [newEmail, setNewEmail] = useState('');
   const [newPhone, setNewPhone] = useState('');
 
-  const isAdmin = currentUser?.email === 'knsorensen@gmail.com' ||
+  const isAdmin = currentUser?.email === 'knsorensen@gmail.com' || currentUser?.email === 'daeand@gmail.com' ||
     users.find((u) => u.uid === currentUser?.uid)?.role === 'admin';
 
   const loadUsers = useCallback(() => {
@@ -145,60 +149,64 @@ export default function UsersScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <Text style={styles.loadingText}>Laster...</Text>
+      <View style={[styles.center, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.textSecondary }}>Laster...</Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.flex}>
+    <View style={[styles.flex, { backgroundColor: colors.background }]}>
       <FlatList
         data={users}
         keyExtractor={(item) => item.uid}
-        contentContainerStyle={styles.list}
+        contentContainerStyle={[styles.list, isWide && styles.listWide]}
         ListHeaderComponent={
           <View style={styles.headerRow}>
-            <Text style={styles.headerText}>
-              {users.length} registrerte brukere
-            </Text>
+            <View style={styles.headerLeft}>
+              <Ionicons name="people" size={18} color={colors.textSecondary} />
+              <Text style={[styles.headerText, { color: colors.textSecondary }]}>
+                {users.length} brukere
+              </Text>
+            </View>
             {isAdmin && (
               <TouchableOpacity
-                style={styles.addBtn}
+                style={[styles.addBtn, { backgroundColor: colors.primary }]}
                 onPress={() => setAddModalVisible(true)}
+                activeOpacity={0.7}
               >
-                <Text style={styles.addBtnText}>+ Ny bruker</Text>
+                <Ionicons name="add" size={16} color="#fff" />
+                <Text style={styles.addBtnText}>Ny bruker</Text>
               </TouchableOpacity>
             )}
           </View>
         }
         renderItem={({ item }) => {
           const count = tripCountMap.get(item.uid) || 0;
-          const roleLabel = item.role === 'admin' ? 'Admin' : '';
           return (
             <TouchableOpacity
-              style={styles.row}
+              style={[styles.row, { backgroundColor: colors.surface }]}
               onPress={() => setDetailUser(item)}
+              activeOpacity={0.7}
             >
               <View style={styles.avatarWrap}>
-                <UserAvatar photoURL={item.photoURL} name={item.displayName} size={40} />
+                <UserAvatar photoURL={item.photoURL} name={item.displayName} size={42} />
               </View>
               <View style={styles.info}>
                 <View style={styles.nameRow}>
-                  <Text style={styles.name}>{item.displayName}</Text>
-                  {roleLabel ? (
-                    <View style={styles.adminBadge}>
-                      <Text style={styles.adminBadgeText}>{roleLabel}</Text>
+                  <Text style={[styles.name, { color: colors.text }]}>{item.displayName}</Text>
+                  {item.role === 'admin' && (
+                    <View style={[styles.adminBadge, { backgroundColor: colors.warning + '20' }]}>
+                      <Text style={[styles.adminBadgeText, { color: colors.warning }]}>Admin</Text>
                     </View>
-                  ) : null}
+                  )}
                 </View>
-                {item.phone ? <Text style={styles.detail}>{item.phone}</Text> : null}
-                {item.email ? <Text style={styles.detail}>{item.email}</Text> : null}
+                {item.phone ? <Text style={[styles.detail, { color: colors.textSecondary }]}>{item.phone}</Text> : null}
+                {item.email ? <Text style={[styles.detail, { color: colors.textSecondary }]}>{item.email}</Text> : null}
               </View>
-              <View style={styles.countBadge}>
-                <Text style={styles.countText}>
-                  {count} tur{count !== 1 ? 'er' : ''}
-                </Text>
+              <View style={[styles.countBadge, { backgroundColor: colors.primary + '12' }]}>
+                <Ionicons name="compass-outline" size={13} color={colors.primary} />
+                <Text style={[styles.countText, { color: colors.primary }]}>{count}</Text>
               </View>
             </TouchableOpacity>
           );
@@ -213,78 +221,74 @@ export default function UsersScreen() {
         onRequestClose={() => setDetailUser(null)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             {detailUser && (
               <>
                 <View style={styles.detailHeader}>
-                  <View style={styles.detailAvatarWrap}>
-                    <UserAvatar photoURL={detailUser.photoURL} name={detailUser.displayName} size={56} />
-                  </View>
+                  <UserAvatar photoURL={detailUser.photoURL} name={detailUser.displayName} size={56} />
                   <View style={styles.detailInfo}>
-                    <Text style={styles.detailName}>{detailUser.displayName}</Text>
-                    <Text style={styles.detailRole}>
+                    <Text style={[styles.detailName, { color: colors.text }]}>{detailUser.displayName}</Text>
+                    <Text style={[styles.detailRole, { color: colors.textSecondary }]}>
                       {detailUser.role === 'admin' ? 'Administrator' : 'Bruker'}
                     </Text>
                   </View>
+                  <TouchableOpacity onPress={() => setDetailUser(null)} activeOpacity={0.7}>
+                    <Ionicons name="close" size={24} color={colors.textSecondary} />
+                  </TouchableOpacity>
                 </View>
 
                 {detailUser.email ? (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>E-post</Text>
-                    <Text style={styles.detailValue}>{detailUser.email}</Text>
+                  <View style={[styles.detailRow, { borderBottomColor: colors.border }]}>
+                    <Ionicons name="mail-outline" size={16} color={colors.textSecondary} />
+                    <Text style={[styles.detailValue, { color: colors.text }]}>{detailUser.email}</Text>
                   </View>
                 ) : null}
                 {detailUser.phone ? (
-                  <View style={styles.detailRow}>
-                    <Text style={styles.detailLabel}>Mobil</Text>
-                    <Text style={styles.detailValue}>{detailUser.phone}</Text>
+                  <View style={[styles.detailRow, { borderBottomColor: colors.border }]}>
+                    <Ionicons name="call-outline" size={16} color={colors.textSecondary} />
+                    <Text style={[styles.detailValue, { color: colors.text }]}>{detailUser.phone}</Text>
                   </View>
                 ) : null}
 
-                {/* Trips list */}
-                <Text style={styles.tripsTitle}>
+                <Text style={[styles.tripsTitle, { color: colors.textSecondary }]}>
                   Turer ({tripCountMap.get(detailUser.uid) || 0})
                 </Text>
                 {(userTripsMap.get(detailUser.uid) || []).length > 0 ? (
                   (userTripsMap.get(detailUser.uid) || []).map((trip) => (
-                    <View key={trip.id} style={styles.tripRow}>
-                      <Text style={styles.tripName}>{trip.title}</Text>
-                      <Text style={styles.tripStatus}>
+                    <View key={trip.id} style={[styles.tripRow, { borderBottomColor: colors.border }]}>
+                      <Text style={[styles.tripName, { color: colors.text }]}>{trip.title}</Text>
+                      <Text style={[styles.tripStatus, { color: colors.textSecondary }]}>
                         {trip.status === 'planning' ? 'Planlegges' :
                          trip.status === 'active' ? 'Aktiv' : 'Fullført'}
                       </Text>
                     </View>
                   ))
                 ) : (
-                  <Text style={styles.noTrips}>Ingen turer</Text>
+                  <Text style={[styles.noTrips, { color: colors.textSecondary }]}>Ingen turer</Text>
                 )}
 
-                {/* Admin actions */}
                 {isAdmin && detailUser.uid !== currentUser?.uid && (
                   <View style={styles.adminActions}>
                     <TouchableOpacity
-                      style={styles.roleBtn}
+                      style={[styles.roleBtn, { backgroundColor: colors.warning + '15', borderColor: colors.warning + '30' }]}
                       onPress={() => handleToggleRole(detailUser)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={styles.roleBtnText}>
-                        {detailUser.role === 'admin' ? 'Fjern admin' : 'Gjør til admin'}
+                      <Ionicons name="shield-outline" size={16} color={colors.warning} />
+                      <Text style={[styles.roleBtnText, { color: colors.warning }]}>
+                        {detailUser.role === 'admin' ? 'Fjern admin' : 'Gjor til admin'}
                       </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
-                      style={styles.deleteBtn}
+                      style={[styles.deleteBtn, { backgroundColor: colors.error + '10', borderColor: colors.error + '30' }]}
                       onPress={() => handleDeleteUser(detailUser)}
+                      activeOpacity={0.7}
                     >
-                      <Text style={styles.deleteBtnText}>Slett bruker</Text>
+                      <Ionicons name="trash-outline" size={16} color={colors.error} />
+                      <Text style={[styles.deleteBtnText, { color: colors.error }]}>Slett</Text>
                     </TouchableOpacity>
                   </View>
                 )}
-
-                <TouchableOpacity
-                  style={styles.closeBtn}
-                  onPress={() => setDetailUser(null)}
-                >
-                  <Text style={styles.closeBtnText}>Lukk</Text>
-                </TouchableOpacity>
               </>
             )}
           </View>
@@ -299,34 +303,39 @@ export default function UsersScreen() {
         onRequestClose={() => setAddModalVisible(false)}
       >
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Ny bruker</Text>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.modalTitleRow}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Ny bruker</Text>
+              <TouchableOpacity onPress={() => { setAddModalVisible(false); setNewName(''); setNewEmail(''); setNewPhone(''); }}>
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
 
-            <Text style={styles.inputLabel}>Navn *</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Navn *</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
               placeholder="Fullt navn"
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={newName}
               onChangeText={setNewName}
             />
 
-            <Text style={styles.inputLabel}>E-post</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>E-post</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
               placeholder="E-post"
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={newEmail}
               onChangeText={setNewEmail}
               keyboardType="email-address"
               autoCapitalize="none"
             />
 
-            <Text style={styles.inputLabel}>Mobilnummer</Text>
+            <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>Mobilnummer</Text>
             <TextInput
-              style={styles.modalInput}
+              style={[styles.modalInput, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
               placeholder="+47 123 45 678"
-              placeholderTextColor={COLORS.textSecondary}
+              placeholderTextColor={colors.textSecondary}
               value={newPhone}
               onChangeText={setNewPhone}
               keyboardType="phone-pad"
@@ -334,19 +343,9 @@ export default function UsersScreen() {
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
-                style={styles.cancelModalBtn}
-                onPress={() => {
-                  setAddModalVisible(false);
-                  setNewName('');
-                  setNewEmail('');
-                  setNewPhone('');
-                }}
-              >
-                <Text style={styles.cancelModalBtnText}>Avbryt</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.submitBtn}
+                style={[styles.submitBtn, { backgroundColor: colors.primary }]}
                 onPress={handleAddUser}
+                activeOpacity={0.8}
               >
                 <Text style={styles.submitBtnText}>Opprett</Text>
               </TouchableOpacity>
@@ -361,34 +360,39 @@ export default function UsersScreen() {
 const styles = StyleSheet.create({
   flex: {
     flex: 1,
-    backgroundColor: COLORS.background,
   },
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: COLORS.background,
-  },
-  loadingText: {
-    color: COLORS.textSecondary,
   },
   list: {
     padding: 16,
+  },
+  listWide: {
+    paddingHorizontal: 0,
+    paddingTop: 24,
   },
   headerRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 12,
+    marginBottom: 14,
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   headerText: {
     fontSize: 14,
     fontWeight: '600',
-    color: COLORS.textSecondary,
   },
   addBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 8,
   },
@@ -400,12 +404,13 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: COLORS.surface,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 12,
+    padding: 14,
     marginBottom: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    ...Platform.select({
+      web: { boxShadow: '0 1px 3px rgba(0,0,0,0.06)' },
+      default: { elevation: 1, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.06, shadowRadius: 2 },
+    }),
   },
   avatarWrap: {
     marginRight: 12,
@@ -416,99 +421,87 @@ const styles = StyleSheet.create({
   nameRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
+    gap: 8,
   },
   name: {
     fontSize: 15,
     fontWeight: '600',
-    color: COLORS.text,
   },
   adminBadge: {
-    backgroundColor: '#FFF3CD',
-    borderRadius: 4,
-    paddingHorizontal: 6,
-    paddingVertical: 1,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
   },
   adminBadgeText: {
-    fontSize: 10,
+    fontSize: 11,
     fontWeight: '700',
-    color: '#856404',
   },
   detail: {
-    fontSize: 12,
-    color: COLORS.textSecondary,
-    marginTop: 1,
+    fontSize: 13,
+    marginTop: 2,
   },
   countBadge: {
-    backgroundColor: COLORS.primary + '15',
-    borderRadius: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
   },
   countText: {
-    fontSize: 12,
+    fontSize: 13,
     fontWeight: '600',
-    color: COLORS.primary,
   },
-  // Modal styles
+  // Modals
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     padding: 24,
   },
   modalContent: {
-    backgroundColor: COLORS.background,
     borderRadius: 16,
     padding: 24,
+    maxWidth: 480,
+    width: '100%',
+    alignSelf: 'center',
     maxHeight: '80%',
+  },
+  modalTitleRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
   },
   modalTitle: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
-    marginBottom: 20,
+    fontWeight: '700',
   },
   inputLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: COLORS.text,
+    fontSize: 12,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
     marginBottom: 6,
   },
   modalInput: {
-    backgroundColor: COLORS.surface,
     borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
+    borderRadius: 10,
     padding: 14,
     fontSize: 16,
-    color: COLORS.text,
     marginBottom: 16,
   },
   modalButtons: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 10,
     marginTop: 8,
   },
-  cancelModalBtn: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-  },
-  cancelModalBtnText: {
-    color: COLORS.textSecondary,
-    fontSize: 15,
-    fontWeight: '600',
-  },
   submitBtn: {
-    backgroundColor: COLORS.primary,
-    borderRadius: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    borderRadius: 10,
+    paddingVertical: 14,
+    alignItems: 'center',
   },
   submitBtnText: {
     color: '#fff',
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
   },
   // Detail modal
@@ -516,66 +509,54 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 20,
-  },
-  detailAvatarWrap: {
-    marginRight: 16,
+    gap: 14,
   },
   detailInfo: {
     flex: 1,
   },
   detailName: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: COLORS.text,
+    fontWeight: '700',
   },
   detailRole: {
     fontSize: 13,
-    color: COLORS.textSecondary,
     marginTop: 2,
   },
   detailRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingVertical: 8,
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  detailLabel: {
-    fontSize: 14,
-    color: COLORS.textSecondary,
   },
   detailValue: {
     fontSize: 14,
     fontWeight: '500',
-    color: COLORS.text,
   },
   tripsTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: COLORS.textSecondary,
-    marginTop: 16,
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+    marginTop: 18,
     marginBottom: 8,
   },
   tripRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingVertical: 6,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
   },
   tripName: {
     fontSize: 14,
-    color: COLORS.text,
     flex: 1,
   },
   tripStatus: {
     fontSize: 12,
-    color: COLORS.textSecondary,
   },
   noTrips: {
     fontSize: 13,
-    color: COLORS.textSecondary,
     fontStyle: 'italic',
     paddingVertical: 4,
   },
@@ -586,40 +567,30 @@ const styles = StyleSheet.create({
   },
   roleBtn: {
     flex: 1,
-    backgroundColor: '#FFF3CD',
-    borderRadius: 8,
-    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 12,
+    borderWidth: 1,
   },
   roleBtnText: {
-    color: '#856404',
     fontWeight: '700',
-    fontSize: 14,
+    fontSize: 13,
   },
   deleteBtn: {
     flex: 1,
-    backgroundColor: '#F8D7DA',
-    borderRadius: 8,
-    paddingVertical: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    borderRadius: 10,
+    paddingVertical: 12,
+    borderWidth: 1,
   },
   deleteBtnText: {
-    color: '#721C24',
     fontWeight: '700',
-    fontSize: 14,
-  },
-  closeBtn: {
-    marginTop: 16,
-    alignItems: 'center',
-    paddingVertical: 12,
-    backgroundColor: COLORS.surface,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  closeBtnText: {
-    color: COLORS.text,
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 13,
   },
 });

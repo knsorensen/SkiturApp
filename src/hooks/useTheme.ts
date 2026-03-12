@@ -1,15 +1,16 @@
 import { useColorScheme } from 'react-native';
-import { LIGHT_COLORS, DARK_COLORS } from '../constants';
+import { PALETTES } from '../constants';
 import { useThemeStore } from '../stores/themeStore';
 
 export function useTheme() {
   const systemScheme = useColorScheme();
-  const preference = useThemeStore((s) => s.preference);
+  const { preference, palette: paletteId } = useThemeStore();
 
   const resolvedScheme =
     preference === 'system' ? (systemScheme ?? 'light') : preference;
 
-  const colors = resolvedScheme === 'dark' ? DARK_COLORS : LIGHT_COLORS;
+  const palette = PALETTES[paletteId] ?? PALETTES.nordic;
+  const colors = resolvedScheme === 'dark' ? palette.dark : palette.light;
 
   return { colors, isDark: resolvedScheme === 'dark' };
 }

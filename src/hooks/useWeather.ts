@@ -1,38 +1,49 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { fetchWeather, WeatherEntry } from '../services/weather';
 
 export type { WeatherEntry as WeatherForecast };
+
+const REFRESH_INTERVAL = 30 * 60 * 1000; // 30 minutes
 
 export function useWeather(latitude: number, longitude: number) {
   const [forecast, setForecast] = useState<WeatherEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const lastFetch = useRef<number>(0);
 
-  useEffect(() => {
+  const doFetch = useCallback(() => {
     if (latitude === 0 && longitude === 0) return;
 
-    let cancelled = false;
     setLoading(true);
     setError(null);
 
     fetchWeather(latitude, longitude)
       .then((data) => {
-        if (!cancelled) {
-          setForecast(data);
-          setLoading(false);
-        }
+        setForecast(data);
+        setLoading(false);
+        lastFetch.current = Date.now();
       })
       .catch((err) => {
-        if (!cancelled) {
-          setError(err.message);
-          setLoading(false);
-        }
+        setError(err.message);
+        setLoading(false);
       });
-
-    return () => {
-      cancelled = true;
-    };
   }, [latitude, longitude]);
 
-  return { forecast, loading, error };
+  // Initial fetch
+  useEffect(() => {
+    doFetch();
+  }, [doFetch]);
+
+  // Auto-refresh
+  useEffect(() => {
+    if (latitude === 0 && longitude === 0) return;
+
+    const interval = setInterval(() => {
+      doFetch();
+    }, REFRESH_INTERVAL);
+
+    return () => clearInterval(interval);
+  }, [doFetch, latitude, longitude]);
+
+  return { forecast, loading, error, refresh: doFetch };
 }

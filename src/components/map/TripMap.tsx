@@ -1,15 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { StyleSheet, View, Text } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
-import { RoutePoint, Photo } from '../../types';
+import { RoutePoint, Photo, PointOfInterest } from '../../types';
 import { fetchSkiTrailsBetween, findShortestRoute, SkiTrail } from '../../services/skiTrails';
+import POIMarker from './POIMarker';
 import { COLORS } from '../../constants';
 
 interface Props {
   routePoints: RoutePoint[];
   participantPositions: Map<string, { latitude: number; longitude: number }>;
   photos?: Photo[];
+  pois?: PointOfInterest[];
   onPhotoPress?: (photo: Photo) => void;
+  onPOIPress?: (poi: PointOfInterest) => void;
   initialRegion?: {
     latitude: number;
     longitude: number;
@@ -29,7 +32,9 @@ export default function TripMap({
   routePoints,
   participantPositions,
   photos = [],
+  pois = [],
   onPhotoPress,
+  onPOIPress,
   initialRegion,
   startLocation,
   endLocation,
@@ -173,6 +178,10 @@ export default function TripMap({
           title={photo.caption || 'Bilde'}
           onCalloutPress={() => onPhotoPress?.(photo)}
         />
+      ))}
+
+      {pois.map((poi) => (
+        <POIMarker key={poi.id} poi={poi} onPress={onPOIPress} />
       ))}
     </MapView>
   );

@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Platform } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { Trip } from '../../types';
 import { formatDate } from '../../utils/dateUtils';
 import { COLORS } from '../../constants';
@@ -22,28 +23,54 @@ const STATUS_COLORS: Record<Trip['status'], string> = {
   completed: COLORS.textSecondary,
 };
 
+const STATUS_ICONS: Record<Trip['status'], keyof typeof Ionicons.glyphMap> = {
+  planning: 'calendar-outline',
+  active: 'navigate-outline',
+  completed: 'checkmark-circle-outline',
+};
+
 export default function TripCard({ trip, onPress, onClone }: Props) {
   const date = trip.startDate?.toDate?.() ?? new Date();
+  const statusColor = STATUS_COLORS[trip.status];
 
   return (
     <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.7}>
-      <View style={styles.header}>
-        <Text style={styles.title} numberOfLines={1}>
-          {trip.title}
-        </Text>
-        <View style={[styles.badge, { backgroundColor: STATUS_COLORS[trip.status] }]}>
-          <Text style={styles.badgeText}>{STATUS_LABELS[trip.status]}</Text>
-        </View>
-      </View>
-      <Text style={styles.location} numberOfLines={1}>
-        {trip.location.name}{trip.endLocation?.name ? ` → ${trip.endLocation.name}` : ''}
-      </Text>
-      <View style={styles.footer}>
-        <Text style={styles.date}>{formatDate(date)}</Text>
-        <View style={styles.footerRight}>
-          <Text style={styles.participants}>
-            {trip.participants.length} deltaker{trip.participants.length !== 1 ? 'e' : ''}
+      {/* Color accent bar on the left */}
+      <View style={[styles.accentBar, { backgroundColor: statusColor }]} />
+
+      <View style={styles.cardContent}>
+        <View style={styles.header}>
+          <Text style={styles.title} numberOfLines={1}>
+            {trip.title}
           </Text>
+          <View style={[styles.badge, { backgroundColor: statusColor + '18' }]}>
+            <Ionicons name={STATUS_ICONS[trip.status]} size={13} color={statusColor} />
+            <Text style={[styles.badgeText, { color: statusColor }]}>
+              {STATUS_LABELS[trip.status]}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.locationRow}>
+          <Ionicons name="location-outline" size={15} color={COLORS.textSecondary} />
+          <Text style={styles.location} numberOfLines={1}>
+            {trip.location.name}{trip.endLocation?.name ? ` → ${trip.endLocation.name}` : ''}
+          </Text>
+        </View>
+
+        <View style={styles.footer}>
+          <View style={styles.footerLeft}>
+            <View style={styles.metaItem}>
+              <Ionicons name="calendar-outline" size={14} color={COLORS.textSecondary} />
+              <Text style={styles.metaText}>{formatDate(date)}</Text>
+            </View>
+            <View style={styles.metaItem}>
+              <Ionicons name="people-outline" size={14} color={COLORS.textSecondary} />
+              <Text style={styles.metaText}>
+                {trip.participants.length} deltaker{trip.participants.length !== 1 ? 'e' : ''}
+              </Text>
+            </View>
+          </View>
           {onClone && (
             <TouchableOpacity
               style={styles.cloneBtn}
@@ -53,7 +80,8 @@ export default function TripCard({ trip, onPress, onClone }: Props) {
               }}
               activeOpacity={0.7}
             >
-              <Text style={styles.cloneBtnText}>Gjenta tur</Text>
+              <Ionicons name="copy-outline" size={14} color={COLORS.primary} />
+              <Text style={styles.cloneBtnText}>Gjenta</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -65,67 +93,97 @@ export default function TripCard({ trip, onPress, onClone }: Props) {
 const styles = StyleSheet.create({
   card: {
     backgroundColor: COLORS.surface,
-    borderRadius: 12,
-    padding: 16,
+    borderRadius: 14,
     marginBottom: 12,
-    borderWidth: 1,
-    borderColor: COLORS.border,
+    flexDirection: 'row',
+    overflow: 'hidden',
+    ...Platform.select({
+      web: {
+        boxShadow: '0 1px 3px rgba(0,0,0,0.08), 0 1px 2px rgba(0,0,0,0.06)',
+        transition: 'box-shadow 0.2s ease, transform 0.2s ease',
+      },
+      default: {
+        elevation: 2,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.08,
+        shadowRadius: 3,
+      },
+    }),
+  },
+  accentBar: {
+    width: 4,
+  },
+  cardContent: {
+    flex: 1,
+    padding: 16,
   },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   title: {
-    fontSize: 18,
+    fontSize: 17,
     fontWeight: '600',
     color: COLORS.text,
     flex: 1,
-    marginRight: 8,
+    marginRight: 10,
   },
   badge: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    gap: 5,
   },
   badgeText: {
-    color: '#fff',
     fontSize: 12,
     fontWeight: '600',
+  },
+  locationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginBottom: 12,
   },
   location: {
     fontSize: 14,
     color: COLORS.textSecondary,
-    marginBottom: 10,
+    flex: 1,
   },
   footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  footerRight: {
+  footerLeft: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  metaItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 5,
   },
-  date: {
-    fontSize: 13,
-    color: COLORS.textSecondary,
-  },
-  participants: {
+  metaText: {
     fontSize: 13,
     color: COLORS.textSecondary,
   },
   cloneBtn: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: 10,
-    paddingVertical: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: COLORS.primaryLight,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
     borderRadius: 8,
   },
   cloneBtnText: {
-    color: '#fff',
-    fontSize: 12,
+    color: COLORS.primary,
+    fontSize: 13,
     fontWeight: '600',
   },
 });

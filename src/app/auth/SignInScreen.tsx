@@ -9,8 +9,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { signIn } from '../../services/auth';
-import { COLORS } from '../../constants';
+import { useTheme } from '../../hooks/useTheme';
 
 interface Props {
   onNavigateToSignUp: () => void;
@@ -20,17 +21,26 @@ export default function SignInScreen({ onNavigateToSignUp }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const { colors } = useTheme();
 
   const handleSignIn = async () => {
     if (!email || !password) {
-      Alert.alert('Feil', 'Fyll inn e-post og passord');
+      if (Platform.OS === 'web') {
+        window.alert('Fyll inn e-post og passord');
+      } else {
+        Alert.alert('Feil', 'Fyll inn e-post og passord');
+      }
       return;
     }
     setLoading(true);
     try {
       await signIn(email, password);
     } catch (error: any) {
-      Alert.alert('Feil', error.message);
+      if (Platform.OS === 'web') {
+        window.alert(error.message);
+      } else {
+        Alert.alert('Feil', error.message);
+      }
     } finally {
       setLoading(false);
     }
@@ -38,41 +48,61 @@ export default function SignInScreen({ onNavigateToSignUp }: Props) {
 
   return (
     <KeyboardAvoidingView
-      style={styles.container}
+      style={[styles.container, { backgroundColor: colors.background }]}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
-      <Text style={styles.title}>SkiturApp</Text>
-      <Text style={styles.subtitle}>Logg inn</Text>
-
-      <TextInput
-        style={styles.input}
-        placeholder="E-post"
-        value={email}
-        onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
-      />
-      <TextInput
-        style={styles.input}
-        placeholder="Passord"
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
-
-      <TouchableOpacity
-        style={[styles.button, loading && styles.buttonDisabled]}
-        onPress={handleSignIn}
-        disabled={loading}
-      >
-        <Text style={styles.buttonText}>
-          {loading ? 'Logger inn...' : 'Logg inn'}
+      <View style={[styles.card, { backgroundColor: colors.surface }]}>
+        <View style={styles.logoWrap}>
+          <Ionicons name="snow-outline" size={40} color={colors.primary} />
+        </View>
+        <Text style={[styles.title, { color: colors.text }]}>SkiturApp</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Logg inn for å komme i gang
         </Text>
-      </TouchableOpacity>
 
-      <TouchableOpacity onPress={onNavigateToSignUp}>
-        <Text style={styles.link}>Har du ikke konto? Registrer deg</Text>
-      </TouchableOpacity>
+        <View style={styles.form}>
+          <Text style={[styles.label, { color: colors.textSecondary }]}>E-post</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+            placeholder="din@epost.no"
+            placeholderTextColor={colors.textSecondary}
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+
+          <Text style={[styles.label, { color: colors.textSecondary }]}>Passord</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: colors.background, borderColor: colors.border, color: colors.text }]}
+            placeholder="Ditt passord"
+            placeholderTextColor={colors.textSecondary}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry
+            returnKeyType="go"
+            onSubmitEditing={handleSignIn}
+          />
+
+          <TouchableOpacity
+            style={[styles.button, { backgroundColor: colors.primary }, loading && styles.buttonDisabled]}
+            onPress={handleSignIn}
+            disabled={loading}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.buttonText}>
+              {loading ? 'Logger inn...' : 'Logg inn'}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <TouchableOpacity onPress={onNavigateToSignUp} style={styles.linkWrap}>
+          <Text style={[styles.link, { color: colors.textSecondary }]}>
+            Har du ikke konto?{' '}
+            <Text style={{ color: colors.primary, fontWeight: '600' }}>Registrer deg</Text>
+          </Text>
+        </TouchableOpacity>
+      </View>
     </KeyboardAvoidingView>
   );
 }
@@ -80,39 +110,64 @@ export default function SignInScreen({ onNavigateToSignUp }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: COLORS.background,
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
   },
-  title: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: COLORS.primary,
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: COLORS.textSecondary,
-    marginBottom: 32,
-  },
-  input: {
+  card: {
     width: '100%',
-    backgroundColor: COLORS.surface,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
+    maxWidth: 420,
+    borderRadius: 16,
+    padding: 32,
+    ...Platform.select({
+      web: {
+        boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
+      },
+      default: {
+        elevation: 4,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.08,
+        shadowRadius: 12,
+      },
+    }),
+  },
+  logoWrap: {
+    alignItems: 'center',
     marginBottom: 12,
   },
+  title: {
+    fontSize: 28,
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: -0.5,
+  },
+  subtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginTop: 4,
+    marginBottom: 28,
+  },
+  form: {},
+  label: {
+    fontSize: 13,
+    fontWeight: '600',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 0.3,
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 14,
+    fontSize: 16,
+    marginBottom: 16,
+  },
   button: {
-    width: '100%',
-    backgroundColor: COLORS.primary,
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
-    marginTop: 8,
+    marginTop: 4,
   },
   buttonDisabled: {
     opacity: 0.6,
@@ -122,9 +177,11 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
+  linkWrap: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
   link: {
-    color: COLORS.primary,
-    marginTop: 16,
     fontSize: 14,
   },
 });
